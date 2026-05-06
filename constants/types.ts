@@ -17,3 +17,7 @@ export const ClothingCategoryOptions = [
   'Outerwear',
   'Accessories',
   'Other',]
+
+  export const AiModelEndpoints = {
+    'Anthropic': 'https://api.anthropic.com/v1/messages'
+  }

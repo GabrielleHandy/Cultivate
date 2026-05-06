@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
-import {getOutfitSuggestion } from '../../utils/claude'
+import {askWearIt, getOutfitSuggestion } from '../../utils/claude'
 import { loadWardrobe } from '@/utils/storage'
 
 export default function OutfitsScreen() {
@@ -17,7 +17,7 @@ const handleAsk = async () => {
       setSuggestion('Add some clothes to your wardrobe first! 👗')
       return
     }
-    const response = await getOutfitSuggestion(items)
+    const response = await askWearIt(items)
     setSuggestion(response.replace(/\*\*(.*?)\*\*/g, '$1'))
   } catch (error) {
     setSuggestion('Something went wrong. Check your connection and try again.')
