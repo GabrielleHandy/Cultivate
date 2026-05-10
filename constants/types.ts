@@ -8,6 +8,10 @@ export type ClothingItem = {
   worn?: number            // track how often you wear it
   addedAt: string          // ISO date string
 }
+export type WearItSuggestion = {
+  suggestion: string
+  reason: string
+}
 
 export const ClothingCategoryOptions = [
   'Tops',

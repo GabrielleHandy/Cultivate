@@ -6,7 +6,6 @@ import * as Crypto from 'expo-crypto'
 //MONTHLY CAP LOGIC
 const USAGE_KEY = 'wearit_claude_usage'
 const MONTHLY_CAP = 20
-
 export async function getUsageCount(): Promise<number> {
   const raw = await AsyncStorage.getItem(USAGE_KEY)
   if (!raw) return 0
