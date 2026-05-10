@@ -31,6 +31,7 @@ export default function OutfitsScreen() {
     getWeather('Winston-Salem').then(setWeather)
   }, [])
 
+  const handleAsk = async () => {
     setLoading(true)
     setSuggestion(null)
     try {
