@@ -2,32 +2,30 @@ import { AiModelEndpoints, ClothingItem, WearItSuggestion } from "@/constants/ty
 import { incrementUsage, isUnderCap } from "./storage"
 
 const AI_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_KEY
-const BONSAI_URL: string= process.env.EXPO_PUBLIC_BONSAI_URL || ''
+const BONSAI_URL: string = process.env.EXPO_PUBLIC_BONSAI_URL || ''
 const REQUIRED_CATEGORIES = ['Tops', 'Bottoms', 'Shoes']
 
 //User specific model in later versions
-const model: keyof typeof AiModelEndpoints= 'Anthropic'
+const model: keyof typeof AiModelEndpoints = 'Anthropic'
 export async function askWearIt(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
- const hasRequiredCategories = REQUIRED_CATEGORIES.every(cat =>
-  items.some(item => item.category === cat)
-)
+  const hasRequiredCategories = REQUIRED_CATEGORIES.every(cat =>
+    items.some(item => item.category === cat)
+  )
 
-if (!hasRequiredCategories) {
-  return {
-    suggestion: "Add more variety to your wardrobe for outfit suggestions!",
-    reason: "You need at least one Top, Bottom, and pair of Shoes for a complete outfit."
+  if (!hasRequiredCategories) {
+    return {
+      suggestion: "Add more variety to your wardrobe for outfit suggestions!",
+      reason: "You need at least one Top, Bottom, and pair of Shoes for a complete outfit."
+    }
   }
-}
- 
-  const underCap = await isUnderCap()
 
+  const underCap = await isUnderCap()
   if (underCap) {
     try {
       await incrementUsage()
       return await getOutfitSuggestion(items, context)
-    } catch {
-      // Claude failed for any reason — fall back to Bonsai
-      console.log('Claude failed, falling back to Bonsai')
+    } catch (error) {
+      console.warn('Claude failed, falling back to Bonsai', error)
       return askBonsai(items, context)
     }
   } else {
@@ -38,49 +36,44 @@ if (!hasRequiredCategories) {
 export async function getOutfitSuggestion(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
   const errorAnswer = { suggestion: 'Could not generate a suggestion right now.', reason: "" }
 
-
   const wardrobeList = items
     .map(item => `- ${item.name} (${item.category})`)
     .join('\n')
 
-
-   if (!AI_KEY){ 
-    errorAnswer.reason =  `Missing ${model} key.`
-    return  errorAnswer 
+  if (!AI_KEY) {
+    errorAnswer.reason = `Missing ${model} key.`
+    return errorAnswer
   }
 
-   try {
-        const response = await fetch(AiModelEndpoints[model], {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': AI_KEY!,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 512,
-          system: `You are WearIt, a personal fashion AI. 
+  try {
+    const response = await fetch(AiModelEndpoints[model], {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_KEY!,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 512,
+        system: `You are WearIt, a personal fashion AI. 
           You only suggest outfits using items from the user's actual wardrobe.
           Be specific — name the actual items. Return your answer in this Json format. { suggestion: string, reason: string }. Keep reason and suggestion 2-3 sentences each.
           Never suggest items not in the wardrobe.`,
-         messages: [{
-  role: 'user',
-  content: `Here is my wardrobe: ${wardrobeList}.${context ? ` Occasion: ${context}.` : ''} Suggest one complete outfit for today.`
-}]
-        })
+        messages: [{
+          role: 'user',
+          content: `Here is my wardrobe: ${wardrobeList}.${context ? ` Occasion: ${context}.` : ''} Suggest one complete outfit for today.`
+        }]
       })
-       const data = await response.json()
-      return parseResponse(data)
-   } catch (error) {  
-    console.error("Network Error:", error)
-    errorAnswer.reason = 'Network Error'
+    })
+    const data = await response.json()
+    return parseResponse(data)
+  } catch (error) {
+    console.error("Unkown Claude Error:", error)
+    errorAnswer.reason = 'Claude Error'
     return errorAnswer
-   }
-  
-
- 
+  }
 }
 
 export async function askBonsai(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
@@ -108,7 +101,6 @@ Wardrobe:
 ${wardrobeList}
 
 ${context ? `Occasion/context: ${context}` : 'Occasion: casual everyday'}`
-  // rest of fetch stays the same
 
   try {
     const response = await fetch(BONSAI_URL, {
@@ -122,57 +114,60 @@ ${context ? `Occasion/context: ${context}` : 'Occasion: casual everyday'}`
       })
     })
     const data = await response.json()
-    console.log(data, 'response from bonsai', data?.choices?.[0]?.message?.content)
     return parseResponse(data, true)
 
-    
-  } catch(error) {
-    console.error("Network Error:", error)
+
+  } catch (error) {
+    console.error("Unkown Bonsai Error:", error)
     return {
       suggestion: "Bonsai server not reachable. Make sure your laptop server is running.",
       reason: ''
     }
   }
 }
-function parseResponse(data:any, bonsai?:boolean){
+
+function parseResponse(data: any, bonsai?: boolean) {
   const errorAnswer = { suggestion: 'Could not generate a suggestion right now.', reason: "" }
   const parsedAnswer = (answer: any): WearItSuggestion => {
-  if (!answer) return errorAnswer
+    if (!answer) return errorAnswer
 
-  // Strip think tags
-  const stripped = answer.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+    // Strip think tags
+    const stripped = answer.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 
-  try {
-    // Fix newlines inside JSON strings before parsing
-    const sanitized = stripped
-      .replace(/:\s*"([^"]*)\n([^"]*)"/g, ': "$1 $2"')  // flatten newlines in values
-      .replace(/[\u0000-\u001F]/g, ' ')                   // remove control chars
-      .replace(/,\s*}/g, '}')                             // trailing commas
-      .replace(/}\s*$/, '}')                              // ensure closing brace
+    try {
+      // Fix newlines inside JSON strings before parsing
+      const sanitized = stripped
+        .replace(/:\s*"([^"]*)\n([^"]*)"/g, ': "$1 $2"')  // flatten newlines in values
+        .replace(/[\u0000-\u001F]/g, ' ')                   // remove control chars
+        .replace(/,\s*}/g, '}')                             // trailing commas
+        .replace(/}\s*$/, '}')
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')                              // ensure closing brace
 
-    const parsed = JSON.parse(sanitized)
-    return {
-      suggestion: (parsed?.suggestion || '').replace(/\*\*/g, '').trim(),
-      reason: (parsed?.reason || '').replace(/\*\*/g, '').trim()
-    }
-  } catch {
-    // JSON failed — just use the raw text as suggestion
-    return {
-      suggestion: stripped.replace(/[{}"]/g, '').replace(/suggestion:|reason:/gi, '').trim(),
-      reason: ''
+      const parsed = JSON.parse(sanitized)
+      return {
+        suggestion: (parsed?.suggestion || '').replace(/\*\*/g, '').trim(),
+        reason: (parsed?.reason || `Suggestion made by ${bonsai ? 'Bonsai' : 'Claude'}`).replace(/\*\*/g, '').trim()
+      }
+    } catch {
+      // JSON failed — just use the raw text as suggestion
+      return {
+        suggestion: stripped.replace(/[{}"]/g, '').replace(/suggestion:|reason:/gi, '').trim(),
+        reason: ''
+      }
     }
   }
-}
-  if(data?.error){
+  if (data?.error) {
     console.error("Claude Error:", data.error)
     errorAnswer.reason = data.error.message
     return errorAnswer
   }
-  //errorAnswer.reason = !!data?.content[0]?.text ? data?.stop_details?.explanation || '' : ''
-   if(bonsai){
-     let bonsaiAnswer = data?.choices?.[0]?.message?.content || null
-      const answer = bonsaiAnswer?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || null
-      return parsedAnswer(answer)
-    }
+  if (bonsai) {
+    let bonsaiAnswer = data?.choices?.[0]?.message?.content || null
+    const answer = bonsaiAnswer?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || null
+    return parsedAnswer(answer)
+  }
+  errorAnswer.reason = !!data?.content[0]?.text ? data?.stop_details?.explanation || '' : ''
+
   return errorAnswer?.reason ? errorAnswer : parsedAnswer(data?.content[0]?.text)
 }
