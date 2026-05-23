@@ -1,5 +1,5 @@
 import { AiModelEndpoints, ClothingItem, WearItSuggestion } from "@/constants/types"
-import { incrementUsage, isUnderCap } from "./storage"
+import { getTrainingExamples, incrementUsage, isUnderCap, saveTrainingExample } from "./storage"
 
 const AI_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_KEY
 const BONSAI_URL: string = process.env.EXPO_PUBLIC_BONSAI_URL || ''
@@ -63,12 +63,22 @@ export async function getOutfitSuggestion(items: ClothingItem[], context?: strin
           Never suggest items not in the wardrobe.`,
         messages: [{
           role: 'user',
-          content: `Here is my wardrobe: ${wardrobeList}.${context ? ` Occasion: ${context}.` : ''} Suggest one complete outfit for today.`
+          content: `Here is my wardrobe: ${wardrobeList}.${context ? ` Occasion: ${context}.` : ''} Suggest one complete outfit for today. If there is an Occasion make that the main context when suggesting.`
         }]
       })
     })
     const data = await response.json()
-    return parseResponse(data)
+    const result = parseResponse(data)
+  if (result.suggestion && !result.suggestion.includes('Could not')) {
+  await saveTrainingExample({
+    wardrobeList,
+    context: context || 'casual everyday',
+    suggestion: result.suggestion,
+    reason: result.reason,
+    timestamp: new Date().toISOString()
+  })
+}
+  return result
   } catch (error) {
     console.error("Unkown Claude Error:", error)
     errorAnswer.reason = 'Claude Error'
@@ -77,6 +87,13 @@ export async function getOutfitSuggestion(items: ClothingItem[], context?: strin
 }
 
 export async function askBonsai(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
+  const examples = await getTrainingExamples()
+const fewShotBlock = examples.length > 0
+  ? `\nHere are examples of good outfit suggestions:\n` +
+    examples.slice(-3).map(e =>
+      `Wardrobe: ${e.wardrobeList}\nContext: ${e.context}\nGood suggestion: ${e.suggestion}`
+    ).join('\n\n')
+  : ''
   const wardrobeList = items
     .map(item => {
       let line = `- ${item.name} (${item.category})`
@@ -96,7 +113,7 @@ export async function askBonsai(items: ClothingItem[], context?: string): Promis
 7. Return your answer in this JSON format: { "suggestion": string, "reason": string }
 8. Never suggest items not in the wardrobe.
 9. Favor items worn more often — they are likely favorites.
-
+${fewShotBlock}
 Wardrobe:
 ${wardrobeList}
 

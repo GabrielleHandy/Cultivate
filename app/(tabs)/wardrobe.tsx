@@ -16,10 +16,14 @@ export default function WardrobeScreen() {
   const { takePhoto, pickFromLibrary } = useImagePicker()
 
   const saveImagePermanently = async (uri: string): Promise<string> => {
-  const filename = uri.split('/').pop()
-  const dest = `${FileSystem.Paths.document}/${filename}`
-  await FileSystem.copyAsync({ from: uri, to: dest })
-  return dest
+  const filename = uri.split('/').pop()!
+  const destPath = FileSystem.Paths.document.uri + filename
+  
+  const sourceFile = new FileSystem.File(uri)
+  const destFile = new FileSystem.File(destPath)
+  sourceFile.copy(destFile)
+  
+  return destPath
 }
   const handleAddItem = async () => {
   Alert.alert('Add Clothing', 'Where would you like to add from?', [

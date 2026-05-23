@@ -5,7 +5,7 @@ import * as Crypto from 'expo-crypto'
 
 //MONTHLY CAP LOGIC
 const USAGE_KEY = 'wearit_claude_usage'
-const MONTHLY_CAP = 20
+const MONTHLY_CAP = 2
 export async function getUsageCount(): Promise<number> {
   const raw = await AsyncStorage.getItem(USAGE_KEY)
   if (!raw) return 0
@@ -64,4 +64,35 @@ export async function updateItem(updated: ClothingItem) {
   await saveWardrobe(current.map(item =>
     item.id === updated.id ? updated : item
   ))
+}
+
+//TRAINING EXAMPLES
+
+const TRAINING_KEY = 'wearit_training_examples'
+
+export type TrainingExample = {
+  wardrobeList: string
+  context: string
+  suggestion: string
+  reason: string
+  timestamp: string
+}
+
+export async function saveTrainingExample(example: TrainingExample): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(TRAINING_KEY)
+    const existing: TrainingExample[] = raw ? JSON.parse(raw) : []
+    // Keep last 20 examples — enough for few-shot, not too heavy
+    const updated = [...existing, example].slice(-20)
+    await AsyncStorage.setItem(TRAINING_KEY, JSON.stringify(updated))
+  } catch(e) {
+    console.error('Failed to save training example:', e)
+  }
+}
+
+export async function getTrainingExamples(): Promise<TrainingExample[]> {
+  try {
+    const raw = await AsyncStorage.getItem(TRAINING_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
 }
