@@ -13,6 +13,22 @@ export type WearItSuggestion = {
   reason: string
 }
 
+export type WishlistItem = {
+  id: string
+  name: string
+  category: ClothingItem['category']
+  color: string
+  photoUri: string       // always required — the visual is the point
+  sourceNote?: string    // optional: "from Zara", "seen on TikTok", etc.
+  addedAt: string
+}
+
+export type GapAnalysisResult = {
+  matches: ClothingItem[]       // items you already own that are similar
+  missing: string[]             // categories/pieces you'd need to complete the look
+  summary: string               // Claude's plain-english read
+}
+
 export const ClothingCategoryOptions = [
   'Tops',
   'Bottoms',

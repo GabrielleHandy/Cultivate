@@ -1,4 +1,4 @@
-import { ClothingItem } from '@/constants/types'
+import { ClothingItem, WishlistItem } from '@/constants/types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
 
@@ -66,6 +66,42 @@ export async function updateItem(updated: ClothingItem) {
   await saveWardrobe(current.map(item =>
     item.id === updated.id ? updated : item
   ))
+}
+
+// WISHLIST CRUD
+const WISHLIST_KEY = 'wearit_wishlist'
+
+export async function loadWishlist(): Promise<WishlistItem[]> {
+  const raw = await AsyncStorage.getItem(WISHLIST_KEY)
+  if (!raw) return []
+  return JSON.parse(raw)
+}
+
+export async function saveWishlist(items: WishlistItem[]) {
+  await AsyncStorage.setItem(WISHLIST_KEY, JSON.stringify(items))
+}
+
+export async function addWishlistItem(item: Omit<WishlistItem, 'id'>): Promise<WishlistItem> {
+  const current = await loadWishlist()
+  const newItem = { ...item, id: Crypto.randomUUID() }
+  await saveWishlist([...current, newItem])
+  return newItem
+}
+
+export async function deleteWishlistItem(id: string) {
+  const current = await loadWishlist()
+  await saveWishlist(current.filter(item => item.id !== id))
+}
+
+// WARDROBE SEARCH
+export async function searchWardrobe(query: string): Promise<ClothingItem[]> {
+  const items = await loadWardrobe()
+  const q = query.toLowerCase()
+  return items.filter(item =>
+    item.name.toLowerCase().includes(q) ||
+    item.color?.toLowerCase().includes(q) ||
+    item.category.toLowerCase().includes(q)
+  )
 }
 
 //TRAINING EXAMPLES
