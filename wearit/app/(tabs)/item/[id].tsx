@@ -1,7 +1,7 @@
 import { ClothingItem, ClothingCategoryOptions } from '@/constants/types'
-import { deleteItem, updateItem } from '@/utils/storage'
-import { useLocalSearchParams, router } from 'expo-router'
-import { useState } from 'react'
+import { deleteItem, loadWardrobe, updateItem } from '@/utils/storage'
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
+import { useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Image, TextInput } from 'react-native'
 
 export default function ItemDetail() {
@@ -10,7 +10,21 @@ export default function ItemDetail() {
   const [editMode, setEditMode] = useState(false)
   const [selectedName, setSelectedName] = useState(name as string)
   const [selectedCategory, setSelectedCategory] = useState(category as string)
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState(photoUri as string | undefined)
   const [changesMade, setChangesMade] = useState(false)
+
+  // Reload from storage on focus so image and fields are always fresh
+  useFocusEffect(
+    useCallback(() => {
+      loadWardrobe().then(items => {
+        const item = items.find(i => i.id === id)
+        if (!item) return
+        setSelectedName(item.name)
+        setSelectedCategory(item.category)
+        setSelectedPhotoUri(item.photoUri)
+      })
+    }, [id])
+  )
 
   const updateName = (value: string) => {
     setSelectedName(value)
@@ -33,7 +47,7 @@ export default function ItemDetail() {
       name: selectedName,
       category: selectedCategory as ClothingItem['category'],
       emoji: emoji as string,
-      photoUri: photoUri as string | undefined,
+      photoUri: selectedPhotoUri,
       addedAt: new Date().toISOString(),
       worn: 0,
     })
@@ -53,8 +67,8 @@ export default function ItemDetail() {
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      {photoUri ? (
-        <Image source={{ uri: photoUri as string }} style={styles.photo} />
+      {selectedPhotoUri ? (
+        <Image source={{ uri: selectedPhotoUri }} style={styles.photo} />
       ) : (
         <Text style={styles.emoji}>{emoji}</Text>
       )}

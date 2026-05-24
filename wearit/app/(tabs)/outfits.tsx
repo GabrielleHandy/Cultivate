@@ -2,23 +2,8 @@ import { useState, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import { loadWardrobe } from '@/utils/storage'
 import { askWearIt } from '@/utils/claude'
+import { getWeather } from '@/utils/weather'
 import { WearItSuggestion } from '@/constants/types'
-
-const WEATHER_KEY = process.env.EXPO_PUBLIC_WEATHER_KEY
-
-async function getWeather(city: string): Promise<string> {
-  try {
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${WEATHER_KEY}&units=imperial`
-    )
-    const data = await res.json()
-    const temp = Math.round(data.main.temp)
-    const desc = data.weather[0].description
-    return `${temp}°F, ${desc}`
-  } catch {
-    return ''
-  }
-}
 
 export default function OutfitsScreen() {
   const [suggestion, setSuggestion] = useState<WearItSuggestion | null>(null)

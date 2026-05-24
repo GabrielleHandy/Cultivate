@@ -1,5 +1,6 @@
 import { AiModelEndpoints, ClothingItem, WearItSuggestion } from "@/constants/types"
 import { getTrainingExamples, incrementUsage, isUnderCap, saveTrainingExample } from "./storage"
+import * as FileSystem from 'expo-file-system/legacy'
 
 const AI_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_KEY
 const BONSAI_URL: string = process.env.EXPO_PUBLIC_BONSAI_URL || ''
@@ -22,8 +23,9 @@ export async function askWearIt(items: ClothingItem[], context?: string): Promis
   const underCap = await isUnderCap()
   if (underCap) {
     try {
+      const result = await getOutfitSuggestion(items, context)
       await incrementUsage()
-      return await getOutfitSuggestion(items, context)
+      return result
     } catch (error) {
       console.warn('Claude failed, falling back to Bonsai', error)
       return askBonsai(items, context)
@@ -140,6 +142,70 @@ ${context ? `Occasion/context: ${context}` : 'Occasion: casual everyday'}`
       suggestion: "Bonsai server not reachable. Make sure your laptop server is running.",
       reason: ''
     }
+  }
+}
+
+export async function tagClothingItem(photoUri: string): Promise<{
+  name: string
+  category: ClothingItem['category']
+  color: string
+}> {
+  const fallback = { name: 'New Item', category: 'Tops' as ClothingItem['category'], color: '' }
+
+  if (!AI_KEY) return fallback
+
+  try {
+    const base64 = await FileSystem.readAsStringAsync(photoUri, {
+      encoding: 'base64',
+    })
+
+    const ext = photoUri.split('.').pop()?.toLowerCase()
+    const mediaType = ext === 'png' ? 'image/png' : 'image/jpeg'
+
+    const response = await fetch(AiModelEndpoints['Anthropic'], {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 128,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: base64 },
+            },
+            {
+              type: 'text',
+              text: `Identify this clothing item. Return ONLY valid JSON, no other text:
+{"name": string, "category": "Tops"|"Bottoms"|"Shoes"|"Dresses"|"Outerwear"|"Accessories"|"Other", "color": string}
+Name should be specific (e.g. "White Linen Shirt", "Dark Wash Jeans"). Color is the primary color.`,
+            },
+          ],
+        }],
+      }),
+    })
+
+    const data = await response.json()
+    const text = data?.content?.[0]?.text
+    if (!text) return fallback
+
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const parsed = JSON.parse(cleaned)
+
+    return {
+      name: parsed.name || fallback.name,
+      category: parsed.category || fallback.category,
+      color: parsed.color || '',
+    }
+  } catch (e) {
+    console.warn('Auto-tag failed, using defaults:', e)
+    return fallback
   }
 }
 

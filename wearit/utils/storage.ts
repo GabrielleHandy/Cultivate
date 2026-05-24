@@ -10,22 +10,24 @@ export async function getUsageCount(): Promise<number> {
   const raw = await AsyncStorage.getItem(USAGE_KEY)
   if (!raw) return 0
   const parsed = JSON.parse(raw)
-  
-  // Reset if it's a new month
+
+  // Reset if it's a new month or new year
   const now = new Date()
-  if (parsed.month !== now.getMonth()) {
+  if (parsed.month !== now.getMonth() || parsed.year !== now.getFullYear()) {
     await AsyncStorage.removeItem(USAGE_KEY)
     return 0
   }
-  
+
   return parsed.count
 }
 
 export async function incrementUsage(): Promise<void> {
   const count = await getUsageCount()
+  const now = new Date()
   await AsyncStorage.setItem(USAGE_KEY, JSON.stringify({
     count: count + 1,
-    month: new Date().getMonth()
+    month: now.getMonth(),
+    year: now.getFullYear(),
   }))
 }
 

@@ -1,18 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, FlatList, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { useState, useCallback } from 'react'
+import { View, FlatList, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
 import ClothingCard from '@/components/ClothingCard'
 import { ClothingItem } from '@/constants/types'
 import { addItem, loadWardrobe } from '../../utils/storage'
+import { tagClothingItem } from '@/utils/claude'
 import { useFocusEffect } from 'expo-router'
 import { useImagePicker } from '@/hooks/useImagePicker'
 import * as FileSystem from 'expo-file-system'
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  Tops: '👕',
+  Bottoms: '👖',
+  Shoes: '👟',
+  Dresses: '👗',
+  Outerwear: '🧥',
+  Accessories: '👜',
+  Other: '🎽',
+}
 
 
 
 export default function WardrobeScreen() {
   const [items, setItems] = useState<ClothingItem[]>([])
   const [loading, setLoading] = useState(true)
-  const addTime = new Date().getTime().toString()
+  const [tagging, setTagging] = useState(false)
   const { takePhoto, pickFromLibrary } = useImagePicker()
 
   const saveImagePermanently = async (uri: string): Promise<string> => {
@@ -33,14 +44,18 @@ export default function WardrobeScreen() {
     const uri = await takePhoto()
     if (!uri) return
     const permanentUri = await saveImagePermanently(uri)
+    setTagging(true)
+    const tag = await tagClothingItem(permanentUri)
     const newItem = await addItem({
-      name: 'New Item',
-      category: 'Tops',
-      emoji: '👕',
+      name: tag.name,
+      category: tag.category,
+      emoji: CATEGORY_EMOJI[tag.category] ?? '👗',
+      color: tag.color,
       photoUri: permanentUri,
-      addedAt: addTime,
+      addedAt: new Date().getTime().toString(),
     })
     setItems(prev => [...prev, newItem])
+    setTagging(false)
   }
 },
 {
@@ -49,14 +64,18 @@ export default function WardrobeScreen() {
     const uri = await pickFromLibrary()
     if (!uri) return
     const permanentUri = await saveImagePermanently(uri)
+    setTagging(true)
+    const tag = await tagClothingItem(permanentUri)
     const newItem = await addItem({
-      name: 'New Item',
-      category: 'Tops',
-      emoji: '👕',
+      name: tag.name,
+      category: tag.category,
+      emoji: CATEGORY_EMOJI[tag.category] ?? '👗',
+      color: tag.color,
       photoUri: permanentUri,
-      addedAt: addTime,
+      addedAt: new Date().getTime().toString(),
     })
     setItems(prev => [...prev, newItem])
+    setTagging(false)
   }
 },
     { text: 'Cancel', style: 'cancel' }
@@ -85,8 +104,16 @@ export default function WardrobeScreen() {
     <TouchableOpacity
       onPress={handleAddItem}
       style={styles.addBtn}
+      disabled={tagging}
     >
-      <Text style={styles.addBtnText}>+ Add Item</Text>
+      {tagging ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <ActivityIndicator color='#fff' size='small' />
+          <Text style={styles.addBtnText}>Tagging item...</Text>
+        </View>
+      ) : (
+        <Text style={styles.addBtnText}>+ Add Item</Text>
+      )}
     </TouchableOpacity>
 
     <FlatList
