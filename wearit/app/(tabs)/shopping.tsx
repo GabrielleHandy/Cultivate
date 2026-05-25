@@ -9,6 +9,7 @@ import { addWishlistItem, loadWishlist, deleteWishlistItem } from '@/utils/stora
 import { tagClothingItem } from '@/utils/claude'
 import { useFocusEffect } from 'expo-router'
 import { useImagePicker } from '@/hooks/useImagePicker'
+import { getPendingSharedUri, setPendingSharedUri } from '@/utils/shareIntent'
 import * as FileSystem from 'expo-file-system'
 
 const { width } = Dimensions.get('window')
@@ -22,6 +23,13 @@ export default function ShoppingScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Handle incoming share intent (image shared from another app)
+      const sharedUri = getPendingSharedUri()
+      if (sharedUri) {
+        setPendingSharedUri(null)
+        processUri(sharedUri)
+      }
+
       loadWishlist().then(saved => {
         setItems(saved)
         setLoading(false)
@@ -38,10 +46,7 @@ export default function ShoppingScreen() {
     return destPath
   }
 
-  const captureAndTag = async (getUri: () => Promise<string | null>) => {
-    const uri = await getUri()
-    if (!uri) return
-
+  const processUri = async (uri: string) => {
     setTagging(true)
     try {
       const permanentUri = await saveImagePermanently(uri)
@@ -54,11 +59,17 @@ export default function ShoppingScreen() {
         addedAt: new Date().toISOString(),
       })
       setItems(prev => [newItem, ...prev])
-    } catch (e) {
+    } catch {
       Alert.alert('Something went wrong', 'Could not tag this item. Try again.')
     } finally {
       setTagging(false)
     }
+  }
+
+  const captureAndTag = async (getUri: () => Promise<string | null>) => {
+    const uri = await getUri()
+    if (!uri) return
+    await processUri(uri)
   }
 
   const handleAdd = () => {
@@ -130,11 +141,13 @@ export default function ShoppingScreen() {
               onLongPress={() => handleLongPress(item)}
               activeOpacity={0.85}
             >
-              <Image
-                source={{ uri: item.photoUri }}
-                style={styles.photo}
-                resizeMode="cover"
-              />
+              <View style={styles.photoContainer}>
+                <Image
+                  source={{ uri: item.photoUri }}
+                  style={styles.photo}
+                  resizeMode="contain"
+                />
+              </View>
               <View style={styles.cardInfo}>
                 <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                 <Text style={styles.cardMeta}>
@@ -215,6 +228,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(44,31,26,0.08)',
+  },
+  photoContainer: {
+    width: CARD_SIZE,
+    height: CARD_SIZE,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   photo: {
     width: CARD_SIZE,
