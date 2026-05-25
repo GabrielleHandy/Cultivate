@@ -1,50 +1,143 @@
-# Welcome to your Expo app 👋
+# WearIt
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An AI-powered wardrobe assistant built with React Native, TypeScript, and Expo. Photograph your clothes, build your wardrobe, and get personalized outfit suggestions powered by a three-tier AI system.
 
-## Get started
+---
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- **AI outfit suggestions** — Get a complete outfit recommendation based on your wardrobe and the occasion
+- **Vision-based clothing tagging** — Photograph a garment and Claude automatically identifies the name, category, and color
+- **Three-tier AI fallback** — Claude API → self-hosted Bonsai LLM → graceful degradation, so the app always works
+- **Occasion-aware context** — Tell the app where you're going and suggestions adapt accordingly
+- **Few-shot learning** — The app captures successful suggestions and injects them as examples into future prompts, improving quality over time
+- **Usage cap management** — Monthly Claude API budget with automatic fallback to Bonsai when the cap is hit
+- **Wardrobe CRUD** — Add, edit, delete, and search clothing items with persistent local storage
+- **Wishlist** — Save items you want to add to your wardrobe
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## Architecture
 
-In the output, you'll find options to open the app in a
+### AI Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+User requests outfit
+        │
+        ▼
+ Under monthly cap?
+   ┌────┴────┐
+  YES       NO
+   │         │
+   ▼         ▼
+Claude    Bonsai LLM
+API       (self-hosted fallback)
+   │         │
+   └────┬────┘
+        │
+   Error? ──► Graceful degradation message
+        │
+        ▼
+  Structured JSON
+  { suggestion, reason }
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+**Claude API** (`claude-sonnet-4-5`) handles primary outfit suggestions and vision-based clothing tagging. When the monthly cap is reached, the app falls back to **Bonsai**, a self-hosted LLM that receives few-shot examples drawn from past Claude suggestions to maintain output quality.
 
-## Learn more
+### Few-Shot Prompt Injection
 
-To learn more about developing your project with Expo, look at the following resources:
+Every successful Claude suggestion is saved as a training example (up to 20 stored in AsyncStorage). When falling back to Bonsai, the last 3 saved examples are injected directly into the system prompt:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+Here are examples of good outfit suggestions:
+Wardrobe: [list] | Context: [occasion] | Good suggestion: [text]
+```
 
-## Join the community
+The app improves over time without retraining — the user's own preferences shape future suggestions.
 
-Join our community of developers creating universal apps.
+### Vision-Based Clothing Tagging
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+When adding a new item, the user can photograph it. The image is base64-encoded and sent to Claude's vision endpoint, which returns structured JSON:
+
+```json
+{ "name": "Dark Wash Jeans", "category": "Bottoms", "color": "Navy" }
+```
+
+No manual data entry needed.
+
+### Response Parsing
+
+Both Claude and Bonsai return structured JSON (`{ suggestion, reason }`). A shared parser handles:
+- Stripping `<think>` tags from reasoning models
+- Sanitizing control characters and malformed JSON
+- Removing markdown code fences
+- Falling back to raw text if JSON parsing fails entirely
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Framework | React Native + Expo (file-based routing via Expo Router) |
+| Language | TypeScript |
+| AI — Primary | Anthropic Claude API (`claude-sonnet-4-5`) |
+| AI — Fallback | Bonsai (self-hosted LLM, OpenAI-compatible endpoint) |
+| Storage | AsyncStorage (wardrobe, wishlist, usage tracking, training examples) |
+| Image handling | expo-file-system (base64 encoding for vision API) |
+| IDs | expo-crypto (UUID generation) |
+| Context | Weather API integration for location-aware suggestions |
+
+---
+
+## Project Structure
+
+```
+wearit/
+├── app/
+│   ├── _layout.tsx       # Root layout, Expo Router entry
+│   ├── index.tsx         # Home / outfit suggestion screen
+│   ├── modal.tsx         # Add/edit clothing item modal
+│   └── (tabs)/           # Tab navigation
+├── components/           # Shared UI components
+├── constants/            # Types and theme tokens
+├── hooks/                # Custom React hooks
+├── utils/
+│   ├── claude.ts         # AI logic: Claude API, Bonsai fallback, few-shot injection, vision tagging
+│   ├── storage.ts        # AsyncStorage CRUD: wardrobe, wishlist, usage cap, training examples
+│   ├── weather.ts        # Weather API integration
+│   └── testFallback.ts   # Fallback chain testing utilities
+└── assets/
+```
+
+---
+
+## Getting Started
+
+```bash
+cd wearit
+npm install
+npx expo start
+```
+
+Create a `.env` file with:
+
+```
+EXPO_PUBLIC_ANTHROPIC_KEY=your_claude_api_key
+EXPO_PUBLIC_BONSAI_URL=your_bonsai_endpoint
+```
+
+Run on iOS Simulator, Android Emulator, or scan the QR code with [Expo Go](https://expo.dev/go).
+
+---
+
+## Roadmap
+
+- [ ] Demo screenshots / screen recording
+- [ ] Weather-aware suggestions (auto-fetch location weather)
+- [ ] Outfit history and favorites
+- [ ] Share outfit as image
+
+---
+
+*Part of the [Cultivate](https://github.com/GabrielleHandy/Cultivate) project.*
