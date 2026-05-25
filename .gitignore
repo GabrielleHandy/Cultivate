@@ -3,6 +3,7 @@
 
 # local env — credentials live here, never commit
 .env*.local
+.env
 
 # dependencies
 node_modules/
