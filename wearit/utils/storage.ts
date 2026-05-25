@@ -1,4 +1,4 @@
-import { ClothingItem, WishlistItem } from '@/constants/types'
+import { ClothingItem, ModelConfig, WishlistItem } from '@/constants/types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
 
@@ -133,4 +133,22 @@ export async function getTrainingExamples(): Promise<TrainingExample[]> {
     const raw = await AsyncStorage.getItem(TRAINING_KEY)
     return raw ? JSON.parse(raw) : []
   } catch { return [] }
+}
+
+// MODEL CONFIG
+const MODEL_CONFIG_KEY = 'wearit_model_config'
+
+export async function saveModelConfig(config: ModelConfig): Promise<void> {
+  await AsyncStorage.setItem(MODEL_CONFIG_KEY, JSON.stringify(config))
+}
+
+export async function loadModelConfig(): Promise<ModelConfig | null> {
+  try {
+    const raw = await AsyncStorage.getItem(MODEL_CONFIG_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+export async function clearModelConfig(): Promise<void> {
+  await AsyncStorage.removeItem(MODEL_CONFIG_KEY)
 }

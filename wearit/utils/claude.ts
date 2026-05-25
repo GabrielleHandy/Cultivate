@@ -1,13 +1,13 @@
 import { AiModelEndpoints, ClothingItem, WearItSuggestion } from "@/constants/types"
 import { getTrainingExamples, incrementUsage, isUnderCap, saveTrainingExample } from "./storage"
+import { askModelAdapter } from "./modelAdapter"
 import * as FileSystem from 'expo-file-system/legacy'
 
 const AI_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_KEY
-const BONSAI_URL: string = process.env.EXPO_PUBLIC_BONSAI_URL || ''
 const REQUIRED_CATEGORIES = ['Tops', 'Bottoms', 'Shoes']
 
-//User specific model in later versions
 const model: keyof typeof AiModelEndpoints = 'Anthropic'
+
 export async function askWearIt(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
   const hasRequiredCategories = REQUIRED_CATEGORIES.every(cat =>
     items.some(item => item.category === cat)
@@ -20,18 +20,29 @@ export async function askWearIt(items: ClothingItem[], context?: string): Promis
     }
   }
 
+  // Tier 1: Claude API (while under monthly cap)
   const underCap = await isUnderCap()
   if (underCap) {
     try {
       const result = await getOutfitSuggestion(items, context)
-      await incrementUsage()
+      // Only increment after a real suggestion — don't burn credits on error responses
+      if (result.suggestion && !result.suggestion.includes('Could not')) {
+        await incrementUsage()
+      }
       return result
     } catch (error) {
-      console.warn('Claude failed, falling back to Bonsai', error)
-      return askBonsai(items, context)
+      console.warn('Claude failed, trying model adapter', error)
     }
-  } else {
-    return askBonsai(items, context)
+  }
+
+  // Tier 2: User-configured model adapter (any OpenAI-compatible endpoint)
+  const adapterResult = await askModelAdapter(items, context)
+  if (adapterResult) return adapterResult
+
+  // Tier 3: Graceful degradation
+  return {
+    suggestion: "You've used your free AI suggestions for this month.",
+    reason: "Add a fallback model in Settings to keep getting suggestions, or check back next month for more Claude credits."
   }
 }
 

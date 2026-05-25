@@ -1,14 +1,17 @@
 import { Tabs } from 'expo-router'
 import { Text } from 'react-native'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function TabLayout() {
+  const { theme } = useTheme()
+
   return (
     <Tabs screenOptions={{
-      tabBarActiveTintColor: '#C97B5A',
-      tabBarInactiveTintColor: '#8C5E4A',
+      tabBarActiveTintColor: theme.tabActive,
+      tabBarInactiveTintColor: theme.tabInactive,
       tabBarStyle: {
-        backgroundColor: '#FAF7F2',
-        borderTopColor: 'rgba(44,31,26,0.1)',
+        backgroundColor: theme.tabBar,
+        borderTopColor: theme.tabBarBorder,
       },
       headerShown: false,
     }}>
@@ -28,6 +31,12 @@ export default function TabLayout() {
         name="shopping"
         options={{ title: 'Shopping', tabBarIcon: ({ color }) => (
           <TabIcon emoji="🛍️" color={color} />
+        )}}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ title: 'Settings', tabBarIcon: ({ color }) => (
+          <TabIcon emoji="⚙️" color={color} />
         )}}
       />
       <Tabs.Screen

@@ -38,6 +38,13 @@ export const ClothingCategoryOptions = [
   'Accessories',
   'Other',]
 
-  export const AiModelEndpoints = {
-    'Anthropic': 'https://api.anthropic.com/v1/messages'
-  }
+export const AiModelEndpoints = {
+  'Anthropic': 'https://api.anthropic.com/v1/messages'
+}
+
+export type ModelConfig = {
+  url: string       // Any OpenAI-compatible endpoint
+  model: string     // e.g. "llama3.2", "mistral", "gpt-4o-mini", "gemma3"
+  apiKey?: string   // Optional — Ollama and local servers don't need one
+  label?: string    // Display name shown in settings UI
+}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import {
   View, FlatList, Text, StyleSheet,
   TouchableOpacity, Alert, ActivityIndicator,
@@ -11,11 +11,15 @@ import { useFocusEffect } from 'expo-router'
 import { useImagePicker } from '@/hooks/useImagePicker'
 import { getPendingSharedUri, setPendingSharedUri } from '@/utils/shareIntent'
 import * as FileSystem from 'expo-file-system'
+import { type Theme, Spacing, Radius, Typography } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const { width } = Dimensions.get('window')
 const CARD_SIZE = (width - 48) / 2   // 2 columns, 16px outer padding + 16px gap
 
 export default function ShoppingScreen() {
+  const { theme } = useTheme()
+  const styles = useMemo(() => makeStyles(theme), [theme])
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [tagging, setTagging] = useState(false)
@@ -162,77 +166,77 @@ export default function ShoppingScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: theme.background,
   },
   center: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: theme.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     fontFamily: 'serif',
     fontSize: 18,
-    color: '#8C5E4A',
+    color: theme.textSecondary,
   },
   addBtn: {
-    margin: 16,
-    backgroundColor: '#C97B5A',
+    margin: Spacing.base,
+    backgroundColor: theme.accent,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     alignItems: 'center',
   },
   addBtnText: {
-    color: '#fff',
+    color: theme.textOnAccent,
     fontWeight: '600',
     fontSize: 16,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
-    gap: 12,
+    gap: Spacing.md,
   },
   emptyEmoji: {
     fontSize: 48,
   },
   emptyTitle: {
-    fontSize: 18,
+    ...Typography.styles.body,
     fontWeight: '600',
-    color: '#2C1F1A',
+    color: theme.textPrimary,
     textAlign: 'center',
   },
   emptyBody: {
-    fontSize: 14,
-    color: '#8C5E4A',
+    ...Typography.styles.bodySmall,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
   grid: {
-    padding: 16,
-    gap: 16,
+    padding: Spacing.base,
+    gap: Spacing.base,
   },
   card: {
     width: CARD_SIZE,
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: theme.surface,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(44,31,26,0.08)',
+    borderColor: theme.border,
   },
   photoContainer: {
     width: CARD_SIZE,
     height: CARD_SIZE,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -245,12 +249,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   cardName: {
-    fontSize: 13,
+    ...Typography.styles.bodySmall,
     fontWeight: '600',
-    color: '#2C1F1A',
+    color: theme.textPrimary,
   },
   cardMeta: {
-    fontSize: 11,
-    color: '#8C5E4A',
+    ...Typography.styles.caption,
+    color: theme.textSecondary,
   },
 })

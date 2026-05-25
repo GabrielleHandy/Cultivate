@@ -1,19 +1,38 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import * as Location from 'expo-location'
 import { loadWardrobe } from '@/utils/storage'
 import { askWearIt } from '@/utils/claude'
 import { getWeather } from '@/utils/weather'
 import { WearItSuggestion } from '@/constants/types'
+import { type Theme, Spacing, Radius, Typography, Shadow } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function OutfitsScreen() {
+  const { theme } = useTheme()
+  const styles = useMemo(() => makeStyles(theme), [theme])
   const [suggestion, setSuggestion] = useState<WearItSuggestion | null>(null)
   const [loading, setLoading] = useState(false)
   const [occasion, setOccasion] = useState('')
   const [weather, setWeather] = useState('')
 
   useEffect(() => {
-    // Get weather for Winston-Salem on load
-    getWeather('Winston-Salem').then(setWeather)
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') return
+
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low })
+        const [place] = await Location.reverseGeocodeAsync(loc.coords)
+        const city = place.city || place.subregion || place.region || ''
+        if (city) {
+          const w = await getWeather(city)
+          if (w) setWeather(`${w} · ${city}`)
+        }
+      } catch {
+        // Weather is a nice-to-have — fail silently
+      }
+    })()
   }, [])
 
   const handleAsk = async () => {
@@ -43,13 +62,13 @@ export default function OutfitsScreen() {
     <View style={styles.screen}>
 
       {weather ? (
-        <Text style={styles.weather}>🌤 {weather} · Winston-Salem</Text>
+        <Text style={styles.weather}>🌤 {weather}</Text>
       ) : null}
 
       <TextInput
         style={styles.input}
         placeholder="What's the occasion? (casual, date night, interview...)"
-        placeholderTextColor="#C4A898"
+        placeholderTextColor={theme.textPlaceholder}
         value={occasion}
         onChangeText={setOccasion}
       />
@@ -58,7 +77,7 @@ export default function OutfitsScreen() {
         <Text style={styles.btnText}>✨ Suggest an Outfit</Text>
       </TouchableOpacity>
 
-      {loading && <ActivityIndicator color='#C97B5A' style={{ marginTop: 24 }} />}
+      {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: 24 }} />}
 
       {suggestion && (
         <View style={styles.card}>
@@ -77,59 +96,55 @@ export default function OutfitsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
-    padding: 20,
+    backgroundColor: theme.background,
+    padding: Spacing.screen,
     paddingTop: 40,
   },
   weather: {
-    fontSize: 12,
-    color: '#8C5E4A',
-    marginBottom: 16,
+    ...Typography.styles.caption,
+    color: theme.textSecondary,
+    marginBottom: Spacing.base,
     textAlign: 'center',
   },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: theme.surface,
+    borderRadius: Radius.md,
     padding: 14,
-    fontSize: 14,
-    color: '#2C1F1A',
-    marginBottom: 16,
+    ...Typography.styles.bodySmall,
+    color: theme.textPrimary,
+    marginBottom: Spacing.base,
     borderWidth: 1,
-    borderColor: 'rgba(44,31,26,0.1)',
+    borderColor: theme.border,
   },
   btn: {
-    backgroundColor: '#C97B5A',
-    padding: 16,
-    borderRadius: 14,
+    backgroundColor: theme.accent,
+    padding: Spacing.base,
+    borderRadius: Radius.lg,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   btnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+    ...Typography.styles.btnLabel,
+    color: theme.textOnAccent,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: theme.surface,
+    borderRadius: Radius.xl,
+    padding: Spacing.xl,
     borderWidth: 1,
-    borderColor: 'rgba(44,31,26,0.08)',
-    gap: 12,
+    borderColor: theme.borderSubtle,
+    gap: Spacing.md,
+    ...Shadow.card,
   },
   suggestionText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#2C1F1A',
-    fontWeight: '500',
+    ...Typography.styles.body,
+    color: theme.textPrimary,
   },
   reasonText: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#8C5E4A',
-    fontStyle: 'italic',
-  }
+    ...Typography.styles.italic,
+    color: theme.textSecondary,
+  },
 })
