@@ -1,8 +1,31 @@
 # macOS
 .DS_Store
 
-# local env
+# local env — credentials live here, never commit
 .env*.local
 
-# each app manages its own node_modules
+# dependencies
 node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build artifacts (generated, not source)
+android/
+ios/
+
+# Signing keys & certificates — never commit these
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
