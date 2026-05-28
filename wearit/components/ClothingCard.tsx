@@ -1,14 +1,14 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native'
 import { router } from 'expo-router'
-import { useState, useMemo } from 'react'
-import { type Theme, Spacing, Radius, Typography, Shadow } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
+import { useState } from 'react'
+import { useColorScheme } from '@/hooks/use-color-scheme'
+import { Colors, Typography, Radius, Shadow } from '@/constants/theme'
 
 export default function ClothingCard({
   id,
   name = 'Unnamed Item',
-  category = 'Other',
-  emoji = '👗',
+  category = 'Uncategorized',
+  emoji = '🧥',
   photoUri,
   addedAt,
 }: {
@@ -19,100 +19,112 @@ export default function ClothingCard({
   photoUri?: string
   addedAt?: string
 }) {
-  const { theme } = useTheme()
-  const styles = useMemo(() => makeStyles(theme), [theme])
   const [selected, setSelected] = useState(false)
+  const scheme: keyof typeof Colors = useColorScheme() === 'dark' ? 'dark' : 'light'
+  const C = Colors[scheme]
 
   return (
     <TouchableOpacity
-      style={[styles.card, selected && styles.selected]}
+      activeOpacity={0.85}
+      style={[
+        styles.card,
+        { backgroundColor: C.backgroundCard, borderColor: C.border },
+        selected && { borderColor: C.accent, backgroundColor: C.backgroundAccent },
+        Shadow.card,
+      ]}
       onPress={() => router.push({
         pathname: '/(tabs)/item/[id]',
-        params: { id, name, category, emoji, photoUri },
+        params: { id, name, category, emoji, photoUri }
       })}
       onLongPress={() => setSelected(!selected)}
-      activeOpacity={0.85}
     >
-      {photoUri ? (
-        <Image source={{ uri: photoUri }} style={styles.photo} />
-      ) : (
-        <View style={styles.emojiBg}>
-          <Text style={styles.emoji}>{emoji}</Text>
-        </View>
-      )}
+      <View style={styles.imageContainer}>
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={styles.photo} />
+        ) : (
+          <View style={[styles.placeholder, { backgroundColor: C.backgroundSubtle }]}>
+            <Text style={styles.placeholderEmoji}>{emoji}</Text>
+          </View>
+        )}
+        {selected && (
+          <View style={[styles.selectedBadge, { backgroundColor: C.accent }]}>
+            <Text style={styles.selectedCheck}>✓</Text>
+          </View>
+        )}
+      </View>
 
-      <Text style={styles.name} numberOfLines={1}>{name}</Text>
-      <Text style={styles.category}>{category}</Text>
-
-      {selected && (
-        <View style={styles.checkBadge}>
-          <Text style={styles.check}>✓</Text>
-        </View>
-      )}
+      <View style={[styles.info, { borderTopColor: C.border }]}>
+        <Text
+          style={[styles.name, { color: C.textPrimary, fontFamily: Typography.bodyMedium }]}
+          numberOfLines={1}
+        >
+          {name}
+        </Text>
+        <Text
+          style={[styles.category, { color: C.textAccent, fontFamily: Typography.label }]}
+          numberOfLines={1}
+        >
+          {category.toUpperCase()}
+        </Text>
+      </View>
     </TouchableOpacity>
   )
 }
 
-const makeStyles = (theme: Theme) => StyleSheet.create({
+const styles = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: theme.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing.base,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.border,
-    ...Shadow.card,
+    borderRadius: Radius.lg,
+    borderWidth: 0.5,
+    overflow: 'hidden',
   },
-  selected: {
-    borderWidth: 2,
-    borderColor: theme.accent,
-    backgroundColor: theme.surfaceTint,
+  imageContainer: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 3 / 4,
   },
   photo: {
-    width: 100,
-    height: 130,
-    borderRadius: Radius.md,
-    marginBottom: Spacing.sm,
+    width: '100%',
+    height: '100%',
     resizeMode: 'cover',
   },
-  emojiBg: {
-    width: 100,
-    height: 130,
-    borderRadius: Radius.md,
-    marginBottom: Spacing.sm,
-    backgroundColor: theme.surfaceTint,
+  placeholder: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: {
+  placeholderEmoji: {
     fontSize: 48,
+    opacity: 0.4,
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCheck: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  info: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+    gap: 3,
   },
   name: {
-    ...Typography.styles.bodySmall,
-    fontWeight: '600',
-    color: theme.textPrimary,
-    textAlign: 'center',
+    fontSize: 13,
+    letterSpacing: 0.1,
   },
   category: {
-    ...Typography.styles.caption,
-    color: theme.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 22,
-    height: 22,
-    borderRadius: Radius.full,
-    backgroundColor: theme.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  check: {
-    color: theme.textOnAccent,
-    fontWeight: '700',
-    fontSize: 12,
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
 })

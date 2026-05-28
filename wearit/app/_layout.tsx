@@ -4,6 +4,16 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useShareIntent } from 'expo-share-intent';
+import {
+  useFonts,
+  PlayfairDisplay_400Regular,
+  PlayfairDisplay_600SemiBold,
+} from '@expo-google-fonts/playfair-display';
+import {
+  DMSans_300Light,
+  DMSans_400Regular,
+  DMSans_500Medium,
+} from '@expo-google-fonts/dm-sans';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { setPendingSharedUri } from '@/utils/shareIntent';
@@ -17,6 +27,13 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const { shareIntent, resetShareIntent } = useShareIntent();
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_600SemiBold,
+    DMSans_300Light,
+    DMSans_400Regular,
+    DMSans_500Medium,
+  });
 
   useEffect(() => {
     const imageFile = shareIntent?.files?.find(f =>
@@ -28,6 +45,8 @@ export default function RootLayout() {
       router.push('/(tabs)/shopping')
     }
   }, [shareIntent])
+
+  if (!fontsLoaded) return null;
 
   return (
     <WearItThemeProvider>

@@ -1,4 +1,4 @@
-import { ClothingItem, ModelConfig, WishlistItem } from '@/constants/types'
+import { ClothingItem, ModelConfig, SavedOutfit, WishlistItem } from '@/constants/types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
 
@@ -93,6 +93,11 @@ export async function deleteWishlistItem(id: string) {
   await saveWishlist(current.filter(item => item.id !== id))
 }
 
+export async function getWishlistItem(id: string): Promise<WishlistItem | null> {
+  const items = await loadWishlist()
+  return items.find(item => item.id === id) ?? null
+}
+
 // WARDROBE SEARCH
 export async function searchWardrobe(query: string): Promise<ClothingItem[]> {
   const items = await loadWardrobe()
@@ -133,6 +138,28 @@ export async function getTrainingExamples(): Promise<TrainingExample[]> {
     const raw = await AsyncStorage.getItem(TRAINING_KEY)
     return raw ? JSON.parse(raw) : []
   } catch { return [] }
+}
+
+// SAVED OUTFITS
+const OUTFITS_KEY = 'wearit_saved_outfits'
+
+export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
+  const raw = await AsyncStorage.getItem(OUTFITS_KEY)
+  if (!raw) return []
+  return JSON.parse(raw)
+}
+
+export async function saveOutfit(outfit: Omit<SavedOutfit, 'id'>): Promise<SavedOutfit> {
+  const current = await loadSavedOutfits()
+  const newOutfit = { ...outfit, id: Crypto.randomUUID() }
+  // Newest first
+  await AsyncStorage.setItem(OUTFITS_KEY, JSON.stringify([newOutfit, ...current]))
+  return newOutfit
+}
+
+export async function deleteSavedOutfit(id: string): Promise<void> {
+  const current = await loadSavedOutfits()
+  await AsyncStorage.setItem(OUTFITS_KEY, JSON.stringify(current.filter(o => o.id !== id)))
 }
 
 // MODEL CONFIG

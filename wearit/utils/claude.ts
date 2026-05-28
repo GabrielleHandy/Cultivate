@@ -1,7 +1,8 @@
-import { AiModelEndpoints, ClothingItem, WearItSuggestion } from "@/constants/types"
+import { AiModelEndpoints, ClothingItem, GapAnalysisResult, WearItSuggestion, WishlistItem } from "@/constants/types"
 import { getTrainingExamples, incrementUsage, isUnderCap, saveTrainingExample } from "./storage"
 import { askModelAdapter } from "./modelAdapter"
 import * as FileSystem from 'expo-file-system/legacy'
+import { type Theme } from "@/constants/theme"
 
 const AI_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_KEY
 const REQUIRED_CATEGORIES = ['Tops', 'Bottoms', 'Shoes']
@@ -70,9 +71,10 @@ export async function getOutfitSuggestion(items: ClothingItem[], context?: strin
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 512,
-        system: `You are WearIt, a personal fashion AI. 
+        system: `You are WearIt, a personal fashion AI.
           You only suggest outfits using items from the user's actual wardrobe.
-          Be specific — name the actual items. Return your answer in this Json format. { suggestion: string, reason: string }. Keep reason and suggestion 2-3 sentences each.
+          Be specific — name the actual items. Return your answer in this JSON format: { "suggestion": string, "reason": string, "items": [array of exact item names from the wardrobe you selected] }. Keep reason and suggestion 2-3 sentences each.
+          The "items" array must contain the exact item names as they appear in the wardrobe list — do not paraphrase or rename them.
           Never suggest items not in the wardrobe.`,
         messages: [{
           role: 'user',
@@ -220,6 +222,161 @@ Name should be specific (e.g. "White Linen Shirt", "Dark Wash Jeans"). Color is 
   }
 }
 
+export async function analyzeGap(
+  wishlistItem: WishlistItem,
+  wardrobe: ClothingItem[]
+): Promise<GapAnalysisResult> {
+  const fallback: GapAnalysisResult = {
+    matches: [],
+    missing: [],
+    summary: 'Could not analyze your wardrobe right now. Try again in a moment.',
+  }
+
+  if (!AI_KEY) return fallback
+
+  const wardrobeList = wardrobe
+    .map(item => `- ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''})`)
+    .join('\n')
+
+  try {
+    const response = await fetch(AiModelEndpoints['Anthropic'], {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 512,
+        system: `You are a personal fashion stylist AI. Given a wishlist item and a wardrobe, identify what the user already owns that works with or is similar to the wishlist item, and what they'd still need to complete the look. Be specific and practical. Return ONLY valid JSON — no markdown, no extra text.`,
+        messages: [{
+          role: 'user',
+          content: `Wishlist item: ${wishlistItem.name} (${wishlistItem.color} ${wishlistItem.category})
+
+My wardrobe:
+${wardrobeList || 'No items yet'}
+
+Return JSON in this exact format:
+{
+  "matchNames": ["exact item names from the wardrobe list that are similar to or would work well with this wishlist item"],
+  "missing": ["short descriptions of pieces they'd need to complete a look — be specific, e.g. 'White sneakers', 'Slim-fit dark jeans'"],
+  "summary": "2-3 sentences: what they already have that works, and what they still need"
+}
+
+Only include item names in matchNames that appear exactly in the wardrobe list above.`,
+        }],
+      }),
+    })
+
+    const data = await response.json()
+    const text = data?.content?.[0]?.text
+    if (!text) return fallback
+
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const parsed = JSON.parse(cleaned)
+
+    // Map matchNames back to actual ClothingItem objects
+    const matchNames: string[] = parsed.matchNames ?? []
+    const matches = wardrobe.filter(item =>
+      matchNames.some(name => name.toLowerCase() === item.name.toLowerCase())
+    )
+
+    return {
+      matches,
+      missing: Array.isArray(parsed.missing) ? parsed.missing : [],
+      summary: parsed.summary ?? fallback.summary,
+    }
+  } catch (e) {
+    console.warn('Gap analysis failed:', e)
+    return fallback
+  }
+}
+
+export async function generateTheme(aesthetic: string): Promise<Theme | null> {
+  if (!AI_KEY) return null
+
+  const themeContract = `
+  background     — main screen background
+  surface        — card / input background
+  surfaceTint    — selected / hover state surface
+  textPrimary    — headings, body text
+  textSecondary  — labels, captions, muted text
+  textPlaceholder — input placeholder text
+  textOnAccent   — text on accent-colored backgrounds (must be readable)
+  accent         — primary CTA, active tab, selection ring
+  accentMuted    — secondary / outline states
+  accentDanger   — destructive actions, errors
+  border         — card and input borders
+  borderSubtle   — dividers, very light separators
+  tabActive      — active tab icon/text color
+  tabInactive    — inactive tab icon/text color
+  tabBar         — tab bar background
+  tabBarBorder   — tab bar top border
+  sectionLabel   — ALL CAPS section header labels`
+
+  try {
+    const response = await fetch(AiModelEndpoints['Anthropic'], {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 600,
+        system: `You are a designer who creates mobile app color themes. Given an aesthetic description, generate a complete, harmonious color palette. Use hex colors only. Return ONLY a valid JSON object — no markdown, no explanation, no extra text.`,
+        messages: [{
+          role: 'user',
+          content: `Create a WearIt app theme for the aesthetic: "${aesthetic}"
+
+Return a JSON object with exactly these keys:
+${themeContract}
+
+Design rules:
+- Hex colors only (e.g. "#1a1a2e")
+- background and surface should feel immersive but not overwhelming — dark for moody aesthetics, light for airy ones
+- accent is the personality color — make it feel true to the aesthetic
+- textOnAccent must be readable on the accent background (white or near-black)
+- border: "rgba(r,g,b,0.10)" style is fine for subtle borders
+- tabBar should match or be very close to background
+- sectionLabel should match accent
+- Make it cohesive, beautiful, and unmistakably "${aesthetic}"`
+        }]
+      })
+    })
+
+    const data = await response.json()
+    const text = data?.content?.[0]?.text
+    if (!text) return null
+
+    const cleaned = text
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+
+    const parsed = JSON.parse(cleaned)
+
+    // Validate all required keys are present
+    const required: (keyof Theme)[] = [
+      'background', 'surface', 'surfaceTint', 'textPrimary', 'textSecondary',
+      'textPlaceholder', 'textOnAccent', 'accent', 'accentMuted', 'accentDanger',
+      'border', 'borderSubtle', 'tabActive', 'tabInactive', 'tabBar', 'tabBarBorder',
+      'sectionLabel'
+    ]
+    const isValid = required.every(k => typeof parsed[k] === 'string')
+    if (!isValid) return null
+
+    return parsed as Theme
+  } catch (e) {
+    console.warn('Theme generation failed:', e)
+    return null
+  }
+}
+
 function parseResponse(data: any, bonsai?: boolean) {
   const errorAnswer = { suggestion: 'Could not generate a suggestion right now.', reason: "" }
   const parsedAnswer = (answer: any): WearItSuggestion => {
@@ -241,7 +398,8 @@ function parseResponse(data: any, bonsai?: boolean) {
       const parsed = JSON.parse(sanitized)
       return {
         suggestion: (parsed?.suggestion || '').replace(/\*\*/g, '').trim(),
-        reason: (parsed?.reason || `Suggestion made by ${bonsai ? 'Bonsai' : 'Claude'}`).replace(/\*\*/g, '').trim()
+        reason: (parsed?.reason || `Suggestion made by ${bonsai ? 'Bonsai' : 'Claude'}`).replace(/\*\*/g, '').trim(),
+        itemNames: Array.isArray(parsed?.items) ? parsed.items : undefined,
       }
     } catch {
       // JSON failed — just use the raw text as suggestion

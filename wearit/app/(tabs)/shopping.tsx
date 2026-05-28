@@ -7,7 +7,7 @@ import {
 import { WishlistItem } from '@/constants/types'
 import { addWishlistItem, loadWishlist, deleteWishlistItem } from '@/utils/storage'
 import { tagClothingItem } from '@/utils/claude'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, router } from 'expo-router'
 import { useImagePicker } from '@/hooks/useImagePicker'
 import { getPendingSharedUri, setPendingSharedUri } from '@/utils/shareIntent'
 import * as FileSystem from 'expo-file-system'
@@ -115,7 +115,7 @@ export default function ShoppingScreen() {
       >
         {tagging ? (
           <View style={styles.row}>
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={theme.textOnAccent} size="small" />
             <Text style={styles.addBtnText}>Tagging item...</Text>
           </View>
         ) : (
@@ -142,6 +142,7 @@ export default function ShoppingScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
+              onPress={() => router.push(`/wishlist/${item.id}`)}
               onLongPress={() => handleLongPress(item)}
               activeOpacity={0.85}
             >

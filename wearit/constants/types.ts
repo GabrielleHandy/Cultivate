@@ -11,6 +11,7 @@ export type ClothingItem = {
 export type WearItSuggestion = {
   suggestion: string
   reason: string
+  itemNames?: string[]   // exact wardrobe item names Claude selected for this outfit
 }
 
 export type WishlistItem = {
@@ -21,6 +22,16 @@ export type WishlistItem = {
   photoUri: string       // always required — the visual is the point
   sourceNote?: string    // optional: "from Zara", "seen on TikTok", etc.
   addedAt: string
+}
+
+export type SavedOutfit = {
+  id: string
+  suggestion: string   // the full AI-generated outfit text
+  reason: string       // Claude's reasoning
+  occasion: string     // what the user typed ("date night", "interview", etc.)
+  weather: string      // weather context at time of generation
+  savedAt: string      // ISO date string
+  itemIds?: string[]   // wardrobe item IDs in this outfit (for linking back to detail screens)
 }
 
 export type GapAnalysisResult = {

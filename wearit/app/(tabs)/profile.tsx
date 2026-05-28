@@ -3,11 +3,12 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, ActivityIndicator, Alert
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { ModelConfig } from '@/constants/types'
 import { saveModelConfig, loadModelConfig, clearModelConfig } from '@/utils/storage'
 import { testModelConnection } from '@/utils/modelAdapter'
 import { generateTheme } from '@/utils/claude'
-import { type Theme, Spacing, Radius, Typography } from '@/constants/theme'
+import { type Theme, Spacing, Radius, Typography, Colors } from '@/constants/theme'
 import { useTheme, THEMES, type ThemeKey } from '@/contexts/ThemeContext'
 
 const PRESETS = [
@@ -20,16 +21,13 @@ const PRESETS = [
 const THEME_LABELS: Partial<Record<ThemeKey, string>> = {
   default: '🌿 Default',
   darkAcademia: '📚 Dark Academia',
-  // y2k: '💿 Y2K',
-  // cleanGirl: '🤍 Clean Girl',
-  // disneyChannel: '🌟 Disney Channel',
 }
 
-export default function SettingsScreen() {
+export default function ProfileScreen() {
   const { theme, themeKey, customThemeName, setThemeKey, applyCustomTheme } = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  // AI theme generation state
+  // AI theme generation
   const [aestheticPrompt, setAestheticPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
   const [previewTheme, setPreviewTheme] = useState<Theme | null>(null)
@@ -61,6 +59,7 @@ export default function SettingsScreen() {
     setAestheticPrompt('')
   }
 
+  // Fallback model config
   const [url, setUrl] = useState('')
   const [modelName, setModelName] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -129,10 +128,7 @@ export default function SettingsScreen() {
           text: 'Remove', style: 'destructive', onPress: async () => {
             await clearModelConfig()
             setCurrentConfig(null)
-            setUrl('')
-            setModelName('')
-            setApiKey('')
-            setLabel('')
+            setUrl(''); setModelName(''); setApiKey(''); setLabel('')
             setTestStatus(null)
           }
         },
@@ -143,7 +139,19 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-      {/* ── Theme Picker ─────────────────────────────────── */}
+      {/* ── Profile Header ───────────────────────────────── */}
+      <View style={styles.profileHeader}>
+        {/* Avatar placeholder — will become try-on surface in WearIt A4 */}
+        <View style={styles.avatar}>
+          <Ionicons name="person-outline" size={36} color={theme.accent} />
+        </View>
+        <Text style={styles.profileTitle}>Style Profile</Text>
+        <Text style={styles.profileSubtitle}>Customize your WearIt experience</Text>
+      </View>
+
+      <View style={styles.divider} />
+
+      {/* ── Appearance ───────────────────────────────────── */}
       <Text style={styles.heading}>Appearance</Text>
       <Text style={styles.subheading}>
         Choose your WearIt aesthetic. More themes coming soon.
@@ -171,7 +179,7 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* ── AI Theme Generator ───────────────────────── */}
+      {/* ── AI Theme Generator ───────────────────────────── */}
       <Text style={styles.sectionLabel}>Generate a Theme</Text>
       <Text style={styles.subheading}>
         Describe an aesthetic and Claude will design a theme for it.
@@ -205,12 +213,9 @@ export default function SettingsScreen() {
         <Text style={styles.generatingHint}>Claude is designing your theme...</Text>
       )}
 
-      {/* Preview */}
       {previewTheme && (
         <View style={styles.previewCard}>
           <Text style={styles.previewLabel}>Preview — {previewName}</Text>
-
-          {/* Color swatches */}
           <View style={styles.swatchRow}>
             {[
               { color: previewTheme.background, label: 'BG' },
@@ -225,8 +230,6 @@ export default function SettingsScreen() {
               </View>
             ))}
           </View>
-
-          {/* Mini UI preview */}
           <View style={[styles.miniPreview, { backgroundColor: previewTheme.background }]}>
             <View style={[styles.miniCard, { backgroundColor: previewTheme.surface, borderColor: previewTheme.border }]}>
               <Text style={[styles.miniTitle, { color: previewTheme.textPrimary }]}>My Wardrobe</Text>
@@ -236,7 +239,6 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
-
           <TouchableOpacity style={[styles.applyBtn, { backgroundColor: previewTheme.accent }]} onPress={handleApplyTheme}>
             <Text style={[styles.applyBtnText, { color: previewTheme.textOnAccent }]}>Apply Theme</Text>
           </TouchableOpacity>
@@ -256,7 +258,6 @@ export default function SettingsScreen() {
         that speaks the OpenAI API format.
       </Text>
 
-      {/* Current status */}
       <View style={styles.statusCard}>
         <Text style={styles.statusLabel}>Current fallback</Text>
         <Text style={styles.statusValue}>
@@ -267,21 +268,15 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* Presets */}
       <Text style={styles.sectionLabel}>Quick presets</Text>
       <View style={styles.presets}>
         {PRESETS.map(preset => (
-          <TouchableOpacity
-            key={preset.label}
-            style={styles.presetBtn}
-            onPress={() => handlePreset(preset)}
-          >
+          <TouchableOpacity key={preset.label} style={styles.presetBtn} onPress={() => handlePreset(preset)}>
             <Text style={styles.presetText}>{preset.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Form */}
       <Text style={styles.sectionLabel}>Endpoint</Text>
 
       <Text style={styles.fieldLabel}>URL</Text>
@@ -328,7 +323,6 @@ export default function SettingsScreen() {
         placeholderTextColor={theme.textPlaceholder}
       />
 
-      {/* Test */}
       <TouchableOpacity style={styles.testBtn} onPress={handleTest} disabled={testing}>
         {testing
           ? <ActivityIndicator color={theme.accent} />
@@ -344,7 +338,6 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Save */}
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
         <Text style={styles.saveBtnText}>{saved ? 'Saved ✓' : 'Save'}</Text>
       </TouchableOpacity>
@@ -365,54 +358,72 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.background,
   },
   content: {
-    padding: Spacing.screen,
-    paddingTop: 48,
     paddingBottom: 48,
   },
+
+  // ── Profile header ──────────────────────────────────────
+  profileHeader: {
+    alignItems: 'center',
+    paddingTop: 56,
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.screen,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.surfaceTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: theme.border,
+    marginBottom: Spacing.base,
+  },
+  profileTitle: {
+    ...Typography.styles.screenTitle,
+    color: theme.textPrimary,
+    marginBottom: 4,
+  },
+  profileSubtitle: {
+    ...Typography.styles.bodySmall,
+    color: theme.textSecondary,
+  },
+
+  // ── Section structure ───────────────────────────────────
   heading: {
     ...Typography.styles.screenTitle,
     color: theme.textPrimary,
     marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.screen,
+    marginTop: Spacing.xl,
   },
   subheading: {
     ...Typography.styles.bodySmall,
     color: theme.textSecondary,
     marginBottom: Spacing.xl,
-  },
-  statusCard: {
-    backgroundColor: theme.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.base,
-    marginBottom: Spacing.xl,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  statusLabel: {
-    ...Typography.styles.sectionLabel,
-    color: theme.sectionLabel,
-    marginBottom: Spacing.xs,
-  },
-  statusValue: {
-    ...Typography.styles.body,
-    fontWeight: '600',
-    color: theme.textPrimary,
-  },
-  statusUrl: {
-    ...Typography.styles.caption,
-    color: theme.textSecondary,
-    marginTop: 2,
+    paddingHorizontal: Spacing.screen,
   },
   sectionLabel: {
     ...Typography.styles.sectionLabel,
     color: theme.sectionLabel,
     marginBottom: 10,
     marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.screen,
   },
+  divider: {
+    height: 1,
+    backgroundColor: theme.border,
+    marginVertical: Spacing.lg,
+    marginHorizontal: Spacing.screen,
+  },
+
+  // ── Theme picker ────────────────────────────────────────
   presets: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.screen,
   },
   presetBtn: {
     backgroundColor: theme.surface,
@@ -435,91 +446,13 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.textOnAccent,
     fontWeight: '600',
   },
-  divider: {
-    height: 1,
-    backgroundColor: theme.border,
-    marginVertical: Spacing.xl,
-  },
-  fieldLabel: {
-    ...Typography.styles.bodySmall,
-    fontWeight: '600',
-    color: theme.textPrimary,
-    marginBottom: 6,
-  },
-  optional: {
-    fontWeight: '400',
-    color: theme.textSecondary,
-  },
-  input: {
-    backgroundColor: theme.surface,
-    borderRadius: Radius.md,
-    padding: 14,
-    fontSize: 14,
-    color: theme.textPrimary,
-    marginBottom: Spacing.base,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  testBtn: {
-    borderWidth: 1,
-    borderColor: theme.accent,
-    borderRadius: Radius.md,
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  testBtnText: {
-    color: theme.accent,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  testResult: {
-    borderRadius: Radius.sm,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  testOk: {
-    backgroundColor: 'rgba(86,163,92,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(86,163,92,0.3)',
-  },
-  testFail: {
-    backgroundColor: theme.surfaceTint,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  testResultText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  testOkText: { color: '#3a7a3e' },
-  testFailText: { color: theme.accentDanger },
-  saveBtn: {
-    backgroundColor: theme.accent,
-    borderRadius: Radius.lg,
-    padding: Spacing.base,
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  saveBtnText: {
-    color: theme.textOnAccent,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  clearBtn: {
-    padding: 14,
-    alignItems: 'center',
-  },
-  clearBtnText: {
-    color: theme.textSecondary,
-    fontSize: 14,
-  },
+
+  // ── AI theme generator ──────────────────────────────────
   generateRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.screen,
   },
   generateInput: {
     flex: 1,
@@ -541,9 +474,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'center',
     minWidth: 90,
   },
-  generateBtnDisabled: {
-    opacity: 0.45,
-  },
+  generateBtnDisabled: { opacity: 0.45 },
   generateBtnText: {
     color: theme.textOnAccent,
     fontWeight: '600',
@@ -554,7 +485,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.textSecondary,
     fontStyle: 'italic',
     marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.screen,
   },
+
+  // ── Theme preview card ──────────────────────────────────
   previewCard: {
     backgroundColor: theme.surface,
     borderRadius: Radius.lg,
@@ -562,6 +496,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.border,
     marginBottom: Spacing.xl,
+    marginHorizontal: Spacing.screen,
     gap: Spacing.md,
   },
   previewLabel: {
@@ -569,70 +504,102 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: '600',
     color: theme.textPrimary,
   },
-  swatchRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  swatchItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
+  swatchRow: { flexDirection: 'row', gap: Spacing.sm },
+  swatchItem: { alignItems: 'center', gap: 4 },
   swatch: {
     width: 40,
     height: 40,
     borderRadius: Radius.sm,
     borderWidth: 1,
   },
-  swatchLabel: {
+  swatchLabel: { ...Typography.styles.caption, color: theme.textSecondary },
+  miniPreview: { borderRadius: Radius.md, padding: Spacing.md, overflow: 'hidden' },
+  miniCard: { borderRadius: Radius.sm, padding: Spacing.sm, borderWidth: 1, gap: 6 },
+  miniTitle: { fontSize: 13, fontWeight: '700' },
+  miniSub: { fontSize: 9, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
+  miniBtn: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' },
+  miniBtnText: { fontSize: 11, fontWeight: '600' },
+  applyBtn: { borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center' },
+  applyBtnText: { fontWeight: '700', fontSize: 15 },
+  discardBtn: { padding: Spacing.sm, alignItems: 'center' },
+  discardBtnText: { ...Typography.styles.bodySmall, color: theme.textSecondary },
+
+  // ── AI model settings ───────────────────────────────────
+  statusCard: {
+    backgroundColor: theme.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginHorizontal: Spacing.screen,
+  },
+  statusLabel: {
+    ...Typography.styles.sectionLabel,
+    color: theme.sectionLabel,
+    marginBottom: Spacing.xs,
+  },
+  statusValue: {
+    ...Typography.styles.body,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  statusUrl: {
     ...Typography.styles.caption,
     color: theme.textSecondary,
+    marginTop: 2,
   },
-  miniPreview: {
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    overflow: 'hidden',
-  },
-  miniCard: {
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    gap: 6,
-  },
-  miniTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  miniSub: {
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  miniBtn: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  miniBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  applyBtn: {
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    alignItems: 'center',
-  },
-  applyBtnText: {
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  discardBtn: {
-    padding: Spacing.sm,
-    alignItems: 'center',
-  },
-  discardBtnText: {
+  fieldLabel: {
     ...Typography.styles.bodySmall,
-    color: theme.textSecondary,
+    fontWeight: '600',
+    color: theme.textPrimary,
+    marginBottom: 6,
+    paddingHorizontal: Spacing.screen,
   },
+  optional: { fontWeight: '400', color: theme.textSecondary },
+  input: {
+    backgroundColor: theme.surface,
+    borderRadius: Radius.md,
+    padding: 14,
+    fontSize: 14,
+    color: theme.textPrimary,
+    marginBottom: Spacing.base,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginHorizontal: Spacing.screen,
+  },
+  testBtn: {
+    borderWidth: 1,
+    borderColor: theme.accent,
+    borderRadius: Radius.md,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    minHeight: 48,
+    justifyContent: 'center',
+    marginHorizontal: Spacing.screen,
+  },
+  testBtnText: { color: theme.accent, fontWeight: '600', fontSize: 15 },
+  testResult: {
+    borderRadius: Radius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.screen,
+  },
+  testOk: { backgroundColor: 'rgba(86,163,92,0.12)', borderWidth: 1, borderColor: 'rgba(86,163,92,0.3)' },
+  testFail: { backgroundColor: theme.surfaceTint, borderWidth: 1, borderColor: theme.border },
+  testResultText: { fontSize: 13, fontWeight: '500' },
+  testOkText: { color: '#3a7a3e' },
+  testFailText: { color: theme.accentDanger },
+  saveBtn: {
+    backgroundColor: theme.accent,
+    borderRadius: Radius.lg,
+    padding: Spacing.base,
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.screen,
+  },
+  saveBtnText: { color: theme.textOnAccent, fontWeight: '700', fontSize: 16 },
+  clearBtn: { padding: 14, alignItems: 'center' },
+  clearBtnText: { color: theme.textSecondary, fontSize: 14 },
 })
