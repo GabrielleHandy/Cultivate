@@ -31,5 +31,21 @@ export function useImagePicker() {
     return result.assets[0].uri
   }
 
-  return { takePhoto, pickFromLibrary }
+  // Multi-select — returns an array of URIs (no crop, crop is disabled for multi)
+  const pickMultipleFromLibrary = async (): Promise<string[]> => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!granted) return []
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsMultipleSelection: true,
+      quality: 0.8,
+      orderedSelection: true,
+    })
+
+    if (result.canceled) return []
+    return result.assets.map(a => a.uri)
+  }
+
+  return { takePhoto, pickFromLibrary, pickMultipleFromLibrary }
 }

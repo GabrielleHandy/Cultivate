@@ -3,10 +3,13 @@ export type ClothingItem = {
   name: string
   category: 'Tops' | 'Bottoms' | 'Shoes' | 'Dresses' | 'Outerwear' | 'Accessories' | 'Other'
   emoji: string
-  photoUri?: string        // camera photo — optional until Module 4
-  color?: string           // for AI outfit matching later
+  photoUri?: string        // front photo
+  backPhotoUri?: string    // back / detail photo
+  color?: string           // primary color
+  tags?: string[]          // user-defined tags for smart matching (e.g. "casual", "work", "summer")
   worn?: number            // track how often you wear it
   addedAt: string          // ISO date string
+  needsTagging?: boolean   // true for no-AI items saved without a name/category yet
 }
 export type WearItSuggestion = {
   suggestion: string

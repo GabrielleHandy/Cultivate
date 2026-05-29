@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Switch,
 } from 'react-native'
 import { ModelConfig } from '@/constants/types'
 import { saveModelConfig, loadModelConfig, clearModelConfig } from '@/utils/storage'
@@ -9,6 +9,7 @@ import { testModelConnection } from '@/utils/modelAdapter'
 import { generateTheme } from '@/utils/claude'
 import { type Theme, Spacing, Radius, Typography } from '@/constants/theme'
 import { useTheme, THEMES, type ThemeKey } from '@/contexts/ThemeContext'
+import { useAI } from '@/contexts/AIContext'
 
 const PRESETS = [
   { label: 'Ollama (local)', url: 'http://localhost:11434/v1/chat/completions', model: 'llama3.2' },
@@ -27,6 +28,7 @@ const THEME_LABELS: Partial<Record<ThemeKey, string>> = {
 
 export default function SettingsScreen() {
   const { theme, themeKey, customThemeName, setThemeKey, applyCustomTheme } = useTheme()
+  const { aiEnabled, setAIEnabled } = useAI()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
   // AI theme generation state
@@ -143,6 +145,27 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+      {/* ── AI Features Toggle ───────────────────────────── */}
+      <Text style={styles.heading}>AI Features</Text>
+      <View style={styles.toggleCard}>
+        <View style={styles.toggleInfo}>
+          <Text style={styles.toggleLabel}>Use AI features</Text>
+          <Text style={styles.toggleDesc}>
+            {aiEnabled
+              ? 'Auto-tagging and outfit suggestions are on.'
+              : 'All AI features off. Add items manually and use the randomizer.'}
+          </Text>
+        </View>
+        <Switch
+          value={aiEnabled}
+          onValueChange={setAIEnabled}
+          trackColor={{ false: theme.border, true: theme.accent }}
+          thumbColor={theme.surface}
+        />
+      </View>
+
+      <View style={styles.divider} />
+
       {/* ── Theme Picker ─────────────────────────────────── */}
       <Text style={styles.heading}>Appearance</Text>
       <Text style={styles.subheading}>
@@ -162,9 +185,12 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-        {themeKey === 'custom' && customThemeName && (
-          <TouchableOpacity style={[styles.presetBtn, styles.presetBtnActive]}>
-            <Text style={[styles.presetText, styles.presetTextActive]}>
+        {customThemeName && (
+          <TouchableOpacity
+            style={[styles.presetBtn, themeKey === 'custom' && styles.presetBtnActive]}
+            onPress={() => setThemeKey('custom')}
+          >
+            <Text style={[styles.presetText, themeKey === 'custom' && styles.presetTextActive]}>
               ✨ {customThemeName}
             </Text>
           </TouchableOpacity>
@@ -434,6 +460,31 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   presetTextActive: {
     color: theme.textOnAccent,
     fontWeight: '600',
+  },
+  toggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: theme.border,
+    gap: Spacing.base,
+    marginBottom: Spacing.xl,
+  },
+  toggleInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  toggleLabel: {
+    ...Typography.styles.body,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  toggleDesc: {
+    ...Typography.styles.caption,
+    color: theme.textSecondary,
+    lineHeight: 16,
   },
   divider: {
     height: 1,

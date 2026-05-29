@@ -1,5 +1,5 @@
-import { AiModelEndpoints, ClothingItem, GapAnalysisResult, WearItSuggestion, WishlistItem } from "@/constants/types"
-import { getTrainingExamples, incrementUsage, isUnderCap, saveTrainingExample } from "./storage"
+import { AiModelEndpoints, ClothingItem, GapAnalysisResult, SavedOutfit, WearItSuggestion, WishlistItem } from "@/constants/types"
+import { incrementUsage, isUnderCap, loadSavedOutfits, saveTrainingExample } from "./storage"
 import { askModelAdapter } from "./modelAdapter"
 import * as FileSystem from 'expo-file-system/legacy'
 import { type Theme } from "@/constants/theme"
@@ -21,11 +21,14 @@ export async function askWearIt(items: ClothingItem[], context?: string): Promis
     }
   }
 
+  // Load saved outfits to pass as context — helps Claude avoid repeating suggestions
+  const savedOutfits = await loadSavedOutfits()
+
   // Tier 1: Claude API (while under monthly cap)
   const underCap = await isUnderCap()
   if (underCap) {
     try {
-      const result = await getOutfitSuggestion(items, context)
+      const result = await getOutfitSuggestion(items, context, savedOutfits)
       // Only increment after a real suggestion — don't burn credits on error responses
       if (result.suggestion && !result.suggestion.includes('Could not')) {
         await incrementUsage()
@@ -47,12 +50,21 @@ export async function askWearIt(items: ClothingItem[], context?: string): Promis
   }
 }
 
-export async function getOutfitSuggestion(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
+export async function getOutfitSuggestion(items: ClothingItem[], context?: string, savedOutfits?: SavedOutfit[]): Promise<WearItSuggestion> {
   const errorAnswer = { suggestion: 'Could not generate a suggestion right now.', reason: "" }
 
   const wardrobeList = items
     .map(item => `- ${item.name} (${item.category})`)
     .join('\n')
+
+  // Inject up to 5 most recent saved looks so Claude avoids repeating them
+  const savedLooksBlock = savedOutfits && savedOutfits.length > 0
+    ? `\n\nThe user has already saved these outfits — avoid repeating the same combinations:\n` +
+      savedOutfits.slice(0, 5).map(o => {
+        const date = new Date(o.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        return `- [${date}${o.occasion ? `, ${o.occasion}` : ''}]: ${o.suggestion.split('.')[0]}.`
+      }).join('\n')
+    : ''
 
   if (!AI_KEY) {
     errorAnswer.reason = `Missing ${model} key.`
@@ -78,7 +90,7 @@ export async function getOutfitSuggestion(items: ClothingItem[], context?: strin
           Never suggest items not in the wardrobe.`,
         messages: [{
           role: 'user',
-          content: `Here is my wardrobe: ${wardrobeList}.${context ? ` Occasion: ${context}.` : ''} Suggest one complete outfit for today. If there is an Occasion make that the main context when suggesting.`
+          content: `Here is my wardrobe:\n${wardrobeList}${savedLooksBlock}${context ? `\n\nOccasion: ${context}` : ''}\n\nSuggest one complete outfit for today. If there is an Occasion make that the main context when suggesting.`
         }]
       })
     })
@@ -98,63 +110,6 @@ export async function getOutfitSuggestion(items: ClothingItem[], context?: strin
     console.error("Unkown Claude Error:", error)
     errorAnswer.reason = 'Claude Error'
     return errorAnswer
-  }
-}
-
-export async function askBonsai(items: ClothingItem[], context?: string): Promise<WearItSuggestion> {
-  const examples = await getTrainingExamples()
-const fewShotBlock = examples.length > 0
-  ? `\nHere are examples of good outfit suggestions:\n` +
-    examples.slice(-3).map(e =>
-      `Wardrobe: ${e.wardrobeList}\nContext: ${e.context}\nGood suggestion: ${e.suggestion}`
-    ).join('\n\n')
-  : ''
-  const wardrobeList = items
-    .map(item => {
-      let line = `- ${item.name} (${item.category})`
-      if (item.color) line += `, color: ${item.color}`
-      if (item.worn && item.worn > 0) line += `, worn ${item.worn} times`
-      return line
-    })
-    .join('\n')
-
-  const rules = `You are a fashion assistant. RULES:
-1. Only use items from this wardrobe list. Never suggest anything else.
-2. Pick exactly ONE outfit. No alternatives.
-3. Plain sentences only. No bullets, no markdown.
-4. Maximum 2 sentences.
-5. Deliver suggestion like a warm, helpful stylist friend.
-6. Do not mention categories like (Tops) or (Bottoms) in your response.
-7. Return your answer in this JSON format: { "suggestion": string, "reason": string }
-8. Never suggest items not in the wardrobe.
-9. Favor items worn more often — they are likely favorites.
-${fewShotBlock}
-Wardrobe:
-${wardrobeList}
-
-${context ? `Occasion/context: ${context}` : 'Occasion: casual everyday'}`
-
-  try {
-    const response = await fetch(BONSAI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'bonsai',
-        messages: [{ role: 'user', content: rules }],
-        max_tokens: 300,
-        temperature: 0.5
-      })
-    })
-    const data = await response.json()
-    return parseResponse(data, true)
-
-
-  } catch (error) {
-    console.error("Unkown Bonsai Error:", error)
-    return {
-      suggestion: "Bonsai server not reachable. Make sure your laptop server is running.",
-      reason: ''
-    }
   }
 }
 
@@ -419,7 +374,7 @@ function parseResponse(data: any, bonsai?: boolean) {
     const answer = bonsaiAnswer?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || null
     return parsedAnswer(answer)
   }
-  errorAnswer.reason = !!data?.content[0]?.text ? data?.stop_details?.explanation || '' : ''
+  errorAnswer.reason = !!data?.content?.[0]?.text ? data?.stop_details?.explanation || '' : ''
 
-  return errorAnswer?.reason ? errorAnswer : parsedAnswer(data?.content[0]?.text)
+  return errorAnswer?.reason ? errorAnswer : parsedAnswer(data?.content?.[0]?.text)
 }

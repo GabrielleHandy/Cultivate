@@ -10,34 +10,23 @@ import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { type Theme, Spacing, Radius, Typography, Shadow } from '@/constants/theme'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useImagePicker } from '@/hooks/useImagePicker'
+import * as FileSystem from 'expo-file-system'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 const PHOTO_HEIGHT = Math.round(SCREEN_HEIGHT * 0.52)
 
 // ─── Category pill ─────────────────────────────────────────────────────────
 
-function CategoryPill({
-  option, selected, theme, onPress,
-}: {
-  option: string
-  selected: boolean
-  theme: Theme
-  onPress: () => void
+function CategoryPill({ option, selected, theme, onPress }: {
+  option: string; selected: boolean; theme: Theme; onPress: () => void
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[
-        pillStyles.pill,
-        { borderColor: theme.accent },
-        selected && { backgroundColor: theme.accent },
-      ]}
+      style={[pillStyles.pill, { borderColor: theme.accent }, selected && { backgroundColor: theme.accent }]}
     >
-      <Text style={[
-        pillStyles.text,
-        { color: theme.accent },
-        selected && { color: theme.textOnAccent },
-      ]}>
+      <Text style={[pillStyles.text, { color: theme.accent }, selected && { color: theme.textOnAccent }]}>
         {option}
       </Text>
     </TouchableOpacity>
@@ -45,41 +34,19 @@ function CategoryPill({
 }
 
 const pillStyles = StyleSheet.create({
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-  },
-  text: {
-    fontSize: 12,
-    fontWeight: '500',
-    fontFamily: 'DMSans_500Medium',
-  },
+  pill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1.5 },
+  text: { fontSize: 12, fontWeight: '500', fontFamily: 'DMSans_500Medium' },
 })
 
 // ─── Action button ──────────────────────────────────────────────────────────
 
-function ActionBtn({
-  icon, label, onPress, danger = false, theme,
-}: {
-  icon: keyof typeof Ionicons.glyphMap
-  label: string
-  onPress: () => void
-  danger?: boolean
-  theme: Theme
+function ActionBtn({ icon, label, onPress, danger = false, theme }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean; theme: Theme
 }) {
   return (
     <TouchableOpacity style={actionStyles.btn} onPress={onPress} activeOpacity={0.7}>
-      <View style={[
-        actionStyles.iconWrap,
-        { backgroundColor: danger ? theme.accentDanger + '15' : theme.surfaceTint },
-      ]}>
-        <Ionicons
-          name={icon}
-          size={20}
-          color={danger ? theme.accentDanger : theme.accent}
-        />
+      <View style={[actionStyles.iconWrap, { backgroundColor: danger ? theme.accentDanger + '15' : theme.surfaceTint }]}>
+        <Ionicons name={icon} size={20} color={danger ? theme.accentDanger : theme.accent} />
       </View>
       <Text style={[actionStyles.label, { color: danger ? theme.accentDanger : theme.textSecondary }]}>
         {label}
@@ -90,18 +57,8 @@ function ActionBtn({
 
 const actionStyles = StyleSheet.create({
   btn: { alignItems: 'center', gap: 6, flex: 1 },
-  iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontSize: 11,
-    fontFamily: 'DMSans_400Regular',
-    textAlign: 'center',
-  },
+  iconWrap: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 11, fontFamily: 'DMSans_400Regular', textAlign: 'center' },
 })
 
 // ─── Main screen ────────────────────────────────────────────────────────────
@@ -110,132 +67,181 @@ export default function ItemDetail() {
   const { theme } = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const insets = useSafeAreaInsets()
+  const { takePhoto, pickFromLibrary } = useImagePicker()
 
   const { id, name, category, emoji, photoUri } = useLocalSearchParams()
 
   const [editMode, setEditMode] = useState(false)
   const [selectedName, setSelectedName] = useState(name as string)
   const [selectedCategory, setSelectedCategory] = useState(category as string)
+  const [selectedColor, setSelectedColor] = useState('')
   const [selectedPhotoUri, setSelectedPhotoUri] = useState(photoUri as string | undefined)
+  const [selectedBackPhotoUri, setSelectedBackPhotoUri] = useState<string | undefined>(undefined)
+  const [showBack, setShowBack] = useState(false)   // front/back toggle
   const [changesMade, setChangesMade] = useState(false)
 
-  // Reload from storage whenever this screen focuses — catches edits made elsewhere
+  // Full item ref for preserving untouched fields on save
+  const [fullItem, setFullItem] = useState<ClothingItem | null>(null)
+
   useFocusEffect(
     useCallback(() => {
       loadWardrobe().then(items => {
         const item = items.find(i => i.id === id)
         if (!item) return
+        setFullItem(item)
         setSelectedName(item.name)
         setSelectedCategory(item.category)
+        setSelectedColor(item.color ?? '')
         setSelectedPhotoUri(item.photoUri)
+        setSelectedBackPhotoUri(item.backPhotoUri)
+        // If this item was saved without a name (needsTagging), auto-open edit mode
+        if (item.needsTagging) setEditMode(true)
       })
     }, [id])
   )
 
-  const updateName = (value: string) => {
-    setSelectedName(value)
-    setChangesMade(value !== name || selectedCategory !== category)
+  const markChanged = () => setChangesMade(true)
+
+  const saveImagePermanently = async (uri: string): Promise<string> => {
+    const filename = `back_${Date.now()}_${uri.split('/').pop()!}`
+    const destPath = FileSystem.Paths.document.uri + filename
+    const sourceFile = new FileSystem.File(uri)
+    const destFile = new FileSystem.File(destPath)
+    await sourceFile.copy(destFile)
+    return destPath
   }
 
-  const updateCategory = (value: string) => {
-    setSelectedCategory(value)
-    setChangesMade(selectedName !== name || value !== category)
+  const handleChangePhoto = (isBack: boolean) => {
+    Alert.alert(isBack ? 'Back Photo' : 'Front Photo', 'Choose source', [
+      {
+        text: '📷 Camera',
+        onPress: async () => {
+          const uri = await takePhoto()
+          if (!uri) return
+          const perm = await saveImagePermanently(uri)
+          if (isBack) { setSelectedBackPhotoUri(perm); setShowBack(true) }
+          else setSelectedPhotoUri(perm)
+          markChanged()
+        },
+      },
+      {
+        text: '🖼️ Library',
+        onPress: async () => {
+          const uri = await pickFromLibrary()
+          if (!uri) return
+          const perm = await saveImagePermanently(uri)
+          if (isBack) { setSelectedBackPhotoUri(perm); setShowBack(true) }
+          else setSelectedPhotoUri(perm)
+          markChanged()
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ])
   }
 
   const handleSave = async () => {
+    if (!fullItem) return
     await updateItem({
-      id: id as string,
+      ...fullItem,
       name: selectedName,
       category: selectedCategory as ClothingItem['category'],
-      emoji: emoji as string,
+      color: selectedColor || undefined,
       photoUri: selectedPhotoUri,
-      addedAt: new Date().toISOString(),
-      worn: 0,
+      backPhotoUri: selectedBackPhotoUri,
+      needsTagging: false,
     })
     setEditMode(false)
     setChangesMade(false)
   }
 
   const handleDelete = () => {
-    Alert.alert(
-      'Remove from wardrobe',
-      `Remove "${selectedName}"? This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteItem(id as string)
-            router.back()
-          },
+    Alert.alert('Remove from wardrobe', `Remove "${selectedName}"? This can't be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: async () => {
+          await deleteItem(id as string)
+          router.back()
         },
-      ]
-    )
+      },
+    ])
   }
 
-  const handleAddToOutfit = () => {
-    // Navigates to Outfits tab — will pass item context once saved board (Task #3) is built
-    router.push('/(tabs)/outfits')
-  }
+  const handleAddToOutfit = () => router.push('/(tabs)/outfits')
 
   const handleFindSimilar = () => {
-    Alert.alert(
-      'Find Similar',
-      'Coming soon — WearIt will scan your closet and suggest pieces that pair with this item.',
-      [{ text: 'Got it' }]
-    )
+    Alert.alert('Find Similar', 'Coming soon — WearIt will scan your closet and suggest pieces that pair with this item.', [{ text: 'Got it' }])
   }
 
-  const handleRemoveBackground = () => {
-    Alert.alert(
-      'Remove Background',
-      'This feature needs a remove.bg API key. Add it in Profile → AI Model Settings.',
-      [
-        { text: 'Later', style: 'cancel' },
-        { text: 'Go to Profile', onPress: () => router.push('/(tabs)/profile') },
-      ]
-    )
-  }
+  const activePhotoUri = showBack ? selectedBackPhotoUri : selectedPhotoUri
+  const hasBackPhoto = !!selectedBackPhotoUri
 
   return (
     <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
 
-      {/* ── Full-bleed photo ────────────────────────────── */}
+      {/* ── Full-bleed photo ──────────────────────────────── */}
       <View style={styles.photoContainer}>
-        {selectedPhotoUri ? (
-          <Image source={{ uri: selectedPhotoUri }} style={styles.photo} resizeMode="cover" />
+        {activePhotoUri ? (
+          <Image source={{ uri: activePhotoUri }} style={styles.photo} resizeMode="cover" />
         ) : (
           <View style={styles.photoPlaceholder}>
-            <Text style={styles.placeholderEmoji}>{emoji}</Text>
+            <Text style={styles.placeholderEmoji}>{showBack ? '🔄' : emoji}</Text>
+            {editMode && (
+              <TouchableOpacity
+                style={styles.addPhotoBtn}
+                onPress={() => handleChangePhoto(showBack)}
+              >
+                <Ionicons name="camera-outline" size={18} color={theme.textOnAccent} />
+                <Text style={[styles.addPhotoBtnText, { color: theme.textOnAccent }]}>
+                  {showBack ? 'Add Back Photo' : 'Add Photo'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
-        {/* Gradient scrim so back button is readable on any photo */}
         <View style={styles.photoScrim} />
 
         {/* Back button */}
-        <TouchableOpacity
-          style={[styles.backBtn, { top: insets.top + 8 }]}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} activeOpacity={0.8}>
           <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
-        {/* Remove background — top right */}
-        {selectedPhotoUri && (
-          <TouchableOpacity
-            style={[styles.bgRemoveBtn, { top: insets.top + 8 }]}
-            onPress={handleRemoveBackground}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="cut-outline" size={16} color="#FFFFFF" />
+        {/* Change photo button (edit mode only) */}
+        {editMode && activePhotoUri && (
+          <TouchableOpacity style={[styles.bgRemoveBtn, { top: insets.top + 8 }]} onPress={() => handleChangePhoto(showBack)} activeOpacity={0.8}>
+            <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
           </TouchableOpacity>
+        )}
+
+        {/* Front / Back toggle — shown when back photo exists, or in edit mode */}
+        {(hasBackPhoto || editMode) && (
+          <View style={[styles.photoTabs, { bottom: Spacing.md }]}>
+            <TouchableOpacity
+              style={[styles.photoTab, !showBack && styles.photoTabActive, { backgroundColor: !showBack ? theme.accent : 'rgba(0,0,0,0.4)' }]}
+              onPress={() => setShowBack(false)}
+            >
+              <Text style={[styles.photoTabText, { color: theme.textOnAccent }]}>Front</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.photoTab, showBack && styles.photoTabActive, { backgroundColor: showBack ? theme.accent : 'rgba(0,0,0,0.4)' }]}
+              onPress={() => {
+                if (editMode && !hasBackPhoto) {
+                  handleChangePhoto(true)
+                } else {
+                  setShowBack(true)
+                }
+              }}
+            >
+              <Text style={[styles.photoTabText, { color: theme.textOnAccent }]}>
+                {editMode && !hasBackPhoto ? '+ Back' : 'Back'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
-      {/* ── Info panel ──────────────────────────────────── */}
+      {/* ── Info panel ───────────────────────────────────── */}
       <ScrollView
         style={styles.panel}
         contentContainerStyle={styles.panelContent}
@@ -247,33 +253,45 @@ export default function ItemDetail() {
           <TextInput
             style={[styles.nameInput, { color: theme.textPrimary, borderBottomColor: theme.accent }]}
             value={selectedName}
-            onChangeText={updateName}
+            onChangeText={v => { setSelectedName(v); markChanged() }}
             placeholder="Item name"
             placeholderTextColor={theme.textPlaceholder}
-            autoFocus
+            autoFocus={!fullItem?.needsTagging}
           />
         ) : (
           <Text style={styles.name}>{selectedName}</Text>
         )}
 
-        {/* Category */}
+        {/* Category + color row */}
         {editMode ? (
-          <View style={styles.categoryGrid}>
-            {ClothingCategoryOptions.map(option => (
-              <CategoryPill
-                key={option}
-                option={option}
-                selected={selectedCategory === option}
-                theme={theme}
-                onPress={() => updateCategory(option)}
-              />
-            ))}
-          </View>
+          <>
+            <TextInput
+              style={[styles.colorInput, { color: theme.textPrimary, backgroundColor: theme.surface, borderColor: theme.border }]}
+              value={selectedColor}
+              onChangeText={v => { setSelectedColor(v); markChanged() }}
+              placeholder="Color (e.g. Navy Blue)"
+              placeholderTextColor={theme.textPlaceholder}
+              autoCapitalize="words"
+            />
+            <View style={styles.categoryGrid}>
+              {ClothingCategoryOptions.map(option => (
+                <CategoryPill
+                  key={option}
+                  option={option}
+                  selected={selectedCategory === option}
+                  theme={theme}
+                  onPress={() => { setSelectedCategory(option); markChanged() }}
+                />
+              ))}
+            </View>
+          </>
         ) : (
-          <Text style={styles.category}>{selectedCategory}</Text>
+          <Text style={styles.category}>
+            {selectedCategory}{selectedColor ? ` · ${selectedColor}` : ''}
+          </Text>
         )}
 
-        {/* Save button — only visible in edit mode with unsaved changes */}
+        {/* Save button */}
         {editMode && changesMade && (
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
             <Ionicons name="checkmark" size={16} color={theme.textOnAccent} />
@@ -312,128 +330,72 @@ export default function ItemDetail() {
           />
         </View>
       </ScrollView>
-
     </View>
   )
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
+  screen: { flex: 1, backgroundColor: theme.background },
 
-  // ── Photo ────────────────────────────────────────────────
-  photoContainer: {
-    width: '100%',
-    height: PHOTO_HEIGHT,
-    backgroundColor: theme.surface,
-  },
-  photo: {
-    width: '100%',
-    height: '100%',
-  },
+  photoContainer: { width: '100%', height: PHOTO_HEIGHT, backgroundColor: theme.surface },
+  photo: { width: '100%', height: '100%' },
   photoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.surfaceTint,
+    width: '100%', height: '100%',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surfaceTint,
+    gap: Spacing.base,
   },
-  placeholderEmoji: {
-    fontSize: 96,
+  placeholderEmoji: { fontSize: 96 },
+  addPhotoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: theme.accent, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md, borderRadius: Radius.lg,
   },
-  // Thin gradient scrim at top so buttons are legible on bright photos
-  photoScrim: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
+  addPhotoBtnText: { ...Typography.styles.btnLabelSm },
+  photoScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: 100, backgroundColor: 'rgba(0,0,0,0.25)' },
   backBtn: {
-    position: 'absolute',
-    left: Spacing.base,
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute', left: Spacing.base,
+    width: 36, height: 36, borderRadius: Radius.full,
+    backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center',
   },
   bgRemoveBtn: {
-    position: 'absolute',
-    right: Spacing.base,
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute', right: Spacing.base,
+    width: 36, height: 36, borderRadius: Radius.full,
+    backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center',
   },
+  photoTabs: {
+    position: 'absolute', left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+  },
+  photoTab: {
+    paddingHorizontal: Spacing.xl, paddingVertical: 6,
+    borderRadius: Radius.full, opacity: 0.9,
+  },
+  photoTabActive: {},
+  photoTabText: { fontSize: 12, fontWeight: '600', fontFamily: 'DMSans_500Medium' },
 
-  // ── Info panel ───────────────────────────────────────────
   panel: {
-    flex: 1,
-    backgroundColor: theme.background,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    marginTop: -Radius.xl,   // pulls panel up to overlap photo bottom
+    flex: 1, backgroundColor: theme.background,
+    borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    marginTop: -Radius.xl,
   },
-  panelContent: {
-    padding: Spacing.screen,
-    paddingTop: Spacing.xl,
+  panelContent: { padding: Spacing.screen, paddingTop: Spacing.xl },
+  name: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 26, color: theme.textPrimary, marginBottom: 6 },
+  nameInput: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 24, borderBottomWidth: 2, paddingVertical: 6, marginBottom: 12 },
+  category: { ...Typography.styles.bodySmall, color: theme.textSecondary, marginBottom: Spacing.xl, textTransform: 'capitalize' },
+  colorInput: {
+    borderRadius: Radius.md, borderWidth: 1,
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    fontSize: 14, marginBottom: Spacing.base,
+    fontFamily: 'DMSans_400Regular',
   },
-  name: {
-    fontFamily: 'PlayfairDisplay_600SemiBold',
-    fontSize: 26,
-    color: theme.textPrimary,
-    marginBottom: 6,
-  },
-  nameInput: {
-    fontFamily: 'PlayfairDisplay_600SemiBold',
-    fontSize: 24,
-    borderBottomWidth: 2,
-    paddingVertical: 6,
-    marginBottom: 12,
-  },
-  category: {
-    ...Typography.styles.bodySmall,
-    color: theme.textSecondary,
-    marginBottom: Spacing.xl,
-    textTransform: 'capitalize',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: Spacing.base,
-  },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.base },
   saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: theme.accent,
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.lg,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: theme.accent, alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+    borderRadius: Radius.lg, marginTop: Spacing.md, marginBottom: Spacing.sm,
     ...Shadow.card,
   },
-  saveBtnText: {
-    ...Typography.styles.btnLabelSm,
-    color: theme.textOnAccent,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.border,
-    marginVertical: Spacing.xl,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  saveBtnText: { ...Typography.styles.btnLabelSm, color: theme.textOnAccent },
+  divider: { height: 1, backgroundColor: theme.border, marginVertical: Spacing.xl },
+  actions: { flexDirection: 'row', justifyContent: 'space-between' },
 })

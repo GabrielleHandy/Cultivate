@@ -5,7 +5,7 @@ import * as Crypto from 'expo-crypto'
 
 //MONTHLY CAP LOGIC
 const USAGE_KEY = 'wearit_claude_usage'
-const MONTHLY_CAP = 2
+const MONTHLY_CAP = 20
 export async function getUsageCount(): Promise<number> {
   const raw = await AsyncStorage.getItem(USAGE_KEY)
   if (!raw) return 0
@@ -178,4 +178,19 @@ export async function loadModelConfig(): Promise<ModelConfig | null> {
 
 export async function clearModelConfig(): Promise<void> {
   await AsyncStorage.removeItem(MODEL_CONFIG_KEY)
+}
+
+// AI ENABLED FLAG
+const AI_ENABLED_KEY = 'wearit_ai_enabled'
+
+export async function loadAIEnabled(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(AI_ENABLED_KEY)
+    if (raw === null) return true  // default: AI on
+    return JSON.parse(raw)
+  } catch { return true }
+}
+
+export async function saveAIEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(AI_ENABLED_KEY, JSON.stringify(enabled))
 }

@@ -9,7 +9,7 @@ A suite of AI-powered apps for learning and everyday life.
 ### [WearIt](./wearit) — AI Wardrobe Assistant
 *Live*
 
-Photograph your clothes, build your wardrobe, and get personalized outfit suggestions powered by a three-tier AI system. Claude API handles primary suggestions and vision-based clothing tagging; a self-hosted Bonsai LLM covers offline fallback; few-shot prompt injection from your own usage history improves quality over time.
+Photograph your clothes, build your wardrobe, and get personalized outfit suggestions powered by a three-tier AI system. Claude API handles primary suggestions and vision-based clothing tagging; any user-configured OpenAI-compatible model (Groq, Ollama, OpenRouter, etc.) covers fallback; few-shot prompt injection from your own usage history improves quality over time, then graceful degradation if no model is available.
 
 **Stack:** React Native · TypeScript · Expo Router · Anthropic Claude API · AsyncStorage
 

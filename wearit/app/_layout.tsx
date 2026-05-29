@@ -17,7 +17,8 @@ import {
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { setPendingSharedUri } from '@/utils/shareIntent';
-import { WearItThemeProvider } from '@/contexts/ThemeContext';
+import { WearItThemeProvider } from '@/contexts/ThemeContext'
+import { AIProvider } from '@/contexts/AIContext';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -49,6 +50,7 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
+    <AIProvider>
     <WearItThemeProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
@@ -58,5 +60,6 @@ export default function RootLayout() {
         <StatusBar style="auto" />
       </ThemeProvider>
     </WearItThemeProvider>
+    </AIProvider>
   );
 }
